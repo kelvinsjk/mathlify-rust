@@ -48,12 +48,12 @@ mod tests {
 }
 
 #[derive(Debug, Clone)]
-pub struct Exponent<'a> {
-	pub base: Box<Expression<'a>>,
-	pub exponent: Box<Expression<'a>>,
+pub struct Exponent {
+	pub base: Box<Expression>,
+	pub exponent: Box<Expression>,
 }
 
-impl fmt::Display for Exponent<'_> {
+impl fmt::Display for Exponent {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 		let brackets = match self.base.as_ref() {
 			Expression::Sum(s) => s.terms.len() > 1,
@@ -82,8 +82,8 @@ impl fmt::Display for Exponent<'_> {
 	}
 }
 
-impl SubIn for Exponent<'_> {
-	fn sub_in<'a>(&'a self, var: &str, exp: &Expression<'a>) -> Expression<'a> {
+impl SubIn for Exponent {
+	fn sub_in(&self, var: &str, exp: &Expression) -> Expression {
 		let e = Exponent {
 			base: Box::new(self.base.sub_in(var, exp)),
 			exponent: Box::new(self.exponent.sub_in(var, exp)),

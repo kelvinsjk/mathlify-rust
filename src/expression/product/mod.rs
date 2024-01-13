@@ -82,13 +82,13 @@ mod tests {
 }
 
 #[derive(Debug, Clone)]
-pub struct Product<'a> {
+pub struct Product {
 	pub coefficient: Fraction,
-	pub factors: Vec<Box<Expression<'a>>>,
+	pub factors: Vec<Box<Expression>>,
 	pub fraction_mode: bool,
 }
 
-impl fmt::Display for Product<'_> {
+impl fmt::Display for Product {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 		if self.coefficient == 0.into() {
 			return write!(f, "0");
@@ -177,7 +177,7 @@ impl fmt::Display for Product<'_> {
 	}
 }
 
-impl Product<'_> {
+impl Product {
 	pub fn collect_coefficients(&mut self) -> () {
 		let mut factors: Vec<Box<Expression>> = Vec::new();
 		for factor in self.factors.iter_mut() {
@@ -248,8 +248,8 @@ impl Product<'_> {
 	}
 }
 
-impl SubIn for Product<'_> {
-	fn sub_in<'a>(&'a self, var: &str, val: &Expression<'a>) -> Expression<'a> {
+impl SubIn for Product {
+	fn sub_in(&self, var: &str, val: &Expression) -> Expression {
 		let mut factors: Vec<Box<Expression>> = Vec::new();
 		for factor in self.factors.iter() {
 			let f = factor.sub_in(var, val);

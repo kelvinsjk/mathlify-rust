@@ -165,8 +165,8 @@ impl PartialEq for Fraction {
 
 // from and into
 
-impl<'a> Into<Expression<'a>> for i32 {
-	fn into(self) -> Expression<'a> {
+impl Into<Expression> for i32 {
+	fn into(self) -> Expression {
 		Expression::Numeral(Fraction::from(self as i32))
 	}
 }
@@ -177,15 +177,15 @@ impl From<i32> for Fraction {
 	}
 }
 
-impl<'a> Into<Expression<'a>> for Fraction {
-	fn into(self) -> Expression<'a> {
+impl Into<Expression> for Fraction {
+	fn into(self) -> Expression {
 		Expression::Numeral(self)
 	}
 }
 
 // custom traits
 impl SubIn for Fraction {
-	fn sub_in<'a>(&self, var: &str, val: &Expression<'a>) -> Expression<'a> {
+	fn sub_in(&self, var: &str, val: &Expression) -> Expression {
 		let _ = var;
 		let _ = val;
 		Expression::Numeral(*self)

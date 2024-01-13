@@ -55,11 +55,11 @@ mod tests {
 }
 
 #[derive(Debug, Clone)]
-pub struct Sum<'a> {
-	pub terms: Vec<Box<Expression<'a>>>,
+pub struct Sum {
+	pub terms: Vec<Box<Expression>>,
 }
 
-impl fmt::Display for Sum<'_> {
+impl fmt::Display for Sum {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 		let mut terms = self.terms.iter();
 		if let Some(first) = terms.next() {
@@ -76,7 +76,7 @@ impl fmt::Display for Sum<'_> {
 	}
 }
 
-impl Sum<'_> {
+impl Sum {
 	pub fn remove_zeros(&mut self) -> () {
 		let mut terms: Vec<Box<Expression>> = Vec::new();
 		for term in self.terms.iter_mut() {
@@ -168,8 +168,8 @@ fn handle_number(
 	return (first_number, other_indices);
 }
 
-impl SubIn for Sum<'_> {
-	fn sub_in<'a>(&'a self, var: &str, val: &Expression<'a>) -> Expression<'a> {
+impl SubIn for Sum {
+	fn sub_in(&self, var: &str, val: &Expression) -> Expression {
 		let mut terms: Vec<Box<Expression>> = Vec::new();
 		for term in self.terms.iter() {
 			terms.push(Box::new(term.sub_in(var, val)));

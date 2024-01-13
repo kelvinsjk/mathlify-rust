@@ -114,16 +114,16 @@ macro_rules! exp {
 }
 
 #[derive(Debug, Clone)]
-pub enum Expression<'a> {
-	Sum(Sum<'a>),
-	Product(Product<'a>),
-	Exponent(Exponent<'a>),
+pub enum Expression {
+	Sum(Sum),
+	Product(Product),
+	Exponent(Exponent),
 	Numeral(Fraction),
-	Variable(&'a str),
+	Variable(String),
 	// TODO: unary functions
 }
 
-impl fmt::Display for Expression<'_> {
+impl fmt::Display for Expression {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 		match self {
 			Expression::Sum(s) => write!(f, "{}", s),
@@ -136,11 +136,11 @@ impl fmt::Display for Expression<'_> {
 }
 
 pub trait SubIn {
-	fn sub_in<'a>(&'a self, var: &str, val: &Expression<'a>) -> Expression<'a>;
+	fn sub_in(&self, var: &str, val: &Expression) -> Expression;
 }
 
-impl SubIn for Expression<'_> {
-	fn sub_in<'a>(&'a self, var: &str, val: &Expression<'a>) -> Expression<'a> {
+impl SubIn for Expression {
+	fn sub_in(&self, var: &str, val: &Expression) -> Expression {
 		let mut r = match self {
 			Expression::Sum(s) => s.sub_in(var, val),
 			Expression::Product(p) => p.sub_in(var, val),
@@ -153,7 +153,7 @@ impl SubIn for Expression<'_> {
 	}
 }
 
-impl Expression<'_> {
+impl Expression {
 	pub fn simplify(&mut self) -> () {
 		// remove singleton sums and products
 		match self {
@@ -248,7 +248,7 @@ impl Expression<'_> {
 	}
 }
 
-impl TryInto<Fraction> for Expression<'_> {
+impl TryInto<Fraction> for Expression {
 	type Error = ();
 	fn try_into(self) -> Result<Fraction, ()> {
 		match self {
@@ -257,7 +257,7 @@ impl TryInto<Fraction> for Expression<'_> {
 		}
 	}
 }
-impl TryInto<String> for Expression<'_> {
+impl TryInto<String> for Expression {
 	type Error = ();
 	fn try_into(self) -> Result<String, ()> {
 		match self {
@@ -266,27 +266,27 @@ impl TryInto<String> for Expression<'_> {
 		}
 	}
 }
-impl<'a> TryInto<Sum<'a>> for Expression<'a> {
+impl TryInto<Sum> for Expression {
 	type Error = ();
-	fn try_into(self) -> Result<Sum<'a>, ()> {
+	fn try_into(self) -> Result<Sum, ()> {
 		match self {
 			Expression::Sum(s) => Ok(s),
 			_ => Err(()),
 		}
 	}
 }
-impl<'a> TryInto<Product<'a>> for Expression<'a> {
+impl TryInto<Product> for Expression {
 	type Error = ();
-	fn try_into(self) -> Result<Product<'a>, ()> {
+	fn try_into(self) -> Result<Product, ()> {
 		match self {
 			Expression::Product(p) => Ok(p),
 			_ => Err(()),
 		}
 	}
 }
-impl<'a> TryInto<Exponent<'a>> for Expression<'a> {
+impl TryInto<Exponent> for Expression {
 	type Error = ();
-	fn try_into(self) -> Result<Exponent<'a>, ()> {
+	fn try_into(self) -> Result<Exponent, ()> {
 		match self {
 			Expression::Exponent(e) => Ok(e),
 			_ => Err(()),
