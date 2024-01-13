@@ -1,3 +1,4 @@
+use crate::expression::exponent::Exponent;
 use crate::expression::numeral::Fraction;
 use crate::expression::{Expression, SubIn};
 use std::fmt;
@@ -9,7 +10,7 @@ mod tests {
 
 	#[test]
 	fn product_display() {
-		assert_eq!(prod!().to_string(), "");
+		assert_eq!(prod!().to_string(), "1");
 		assert_eq!(prod!(0, "x").to_string(), "0");
 		assert_eq!(prod!(2, "x", Fraction::new(1, 2), "y").to_string(), "xy");
 		assert_eq!(
@@ -29,6 +30,11 @@ mod tests {
 			prod_fraction!(Fraction::new(1, 3), "x", "y").to_string(),
 			"\\frac{xy}{3}"
 		);
+		// Sec 1a, Page 61, Q9c
+		assert_eq!(
+			sum!(prod!(5, sum!("x", prod!(2, "y"))), prod!(-9, "x")).to_string(),
+			"5\\left( x + 2y \\right) - 9x"
+		);
 	}
 
 	#[test]
@@ -42,6 +48,36 @@ mod tests {
 		let exp = exp.sub_in("x", &(5).into());
 		let exp = exp.sub_in("y", &(-2 as i32).into());
 		assert_eq!(exp.to_string(), "-\\frac{10}{3}");
+		// Sec 1a, Page 61, Q9c
+		let exp = sum!(prod!(5, sum!("x", prod!(2, "y"))), prod!(-9, "x"));
+		let exp = exp.sub_in("x", &Fraction::new(1, 3).into());
+		let exp = exp.sub_in("y", &Fraction::new(-1, 4).into());
+		let f: Fraction = exp.try_into().unwrap();
+		assert_eq!(f.to_mixed_fraction(), "-3\\frac{5}{6}");
+	}
+
+	#[test]
+	fn quotient() {
+		let exp = quotient!("x", exp!("y", 20));
+		assert_eq!(exp.to_string(), "\\frac{x}{y^{20}}");
+		// Sec 1a, Page 60, Q7c
+		let exp = sum!(quotient!("x", prod!(5, "y")), quotient!("y", prod!(5, "x")));
+		assert_eq!(exp.to_string(), "\\frac{x}{5y} + \\frac{y}{5x}");
+		let exp = exp.sub_in("x", &(-4).into());
+		let exp = exp.sub_in("y", &(7).into());
+		assert_eq!(exp.to_string(), "-\\frac{13}{28}");
+		// Sec 1a, Page 61 Q10b,c,
+		let exp = sum!(quotient!(1, "y"), quotient!(-1, "x"));
+		assert_eq!(exp.to_string(), "\\frac{1}{y} - \\frac{1}{x}");
+		let exp = exp.sub_in("x", &(-5).into());
+		let exp = exp.sub_in("y", &Fraction::new(1, 4).into());
+		assert_eq!(exp.to_string(), "\\frac{21}{5}");
+		let exp = quotient!(sum!("x", prod!(-1, "y")), sum!("x", "y"));
+		assert_eq!(exp.to_string(), "\\frac{x - y}{x + y}");
+		let exp = exp.sub_in("x", &(-5).into());
+		let exp = exp.sub_in("y", &Fraction::new(1, 4).into());
+		assert_eq!(exp.to_string(), "\\frac{21}{19}");
+		// 9b, 10c
 	}
 }
 
@@ -54,7 +90,6 @@ pub struct Product<'a> {
 
 impl fmt::Display for Product<'_> {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-		println!("{:?}", self);
 		if self.coefficient == 0.into() {
 			return write!(f, "0");
 		}
@@ -63,7 +98,40 @@ impl fmt::Display for Product<'_> {
 			let mut num_factors: Vec<Box<Expression>> = Vec::new();
 			let mut den_factors: Vec<Box<Expression>> = Vec::new();
 			for factor in self.factors.iter() {
-				num_factors.push(factor.clone());
+				match factor.as_ref() {
+					Expression::Exponent(e) => match e.exponent.as_ref() {
+						Expression::Numeral(n) => {
+							if n.is_negative() {
+								let mut exp = Expression::Exponent(Exponent {
+									base: e.base.clone(),
+									exponent: Box::new(Expression::Numeral(n.negative())),
+								});
+								exp.simplify();
+								den_factors.push(Box::new(exp));
+							} else {
+								num_factors.push(factor.clone());
+							}
+						}
+						Expression::Product(p) => {
+							if p.coefficient.is_negative() {
+								let mut exp = Expression::Exponent(Exponent {
+									base: e.base.clone(),
+									exponent: Box::new(Expression::Product(p.negative())),
+								});
+								exp.simplify();
+								den_factors.push(Box::new(exp));
+							} else {
+								num_factors.push(factor.clone());
+							}
+						}
+						_ => {
+							num_factors.push(factor.clone());
+						}
+					},
+					_ => {
+						num_factors.push(factor.clone());
+					}
+				}
 			}
 			if !(self.coefficient.denominator == 1 && den_factors.is_empty()) {
 				let den = Product {
@@ -76,10 +144,10 @@ impl fmt::Display for Product<'_> {
 					factors: num_factors,
 					fraction_mode: false,
 				};
+				//println!("den: {:?}", den);
 				return write!(f, "\\frac{{{}}}{{{}}}", num, den);
 			}
 		}
-		println!("coeff: {:?}", self.coefficient.to_string());
 		// auto mode: 1/3 xy^-1
 		if self.coefficient == (-1).into() {
 			if self.factors.is_empty() {
@@ -88,10 +156,20 @@ impl fmt::Display for Product<'_> {
 			write!(f, "-")?;
 		} else if self.coefficient != 1.into() {
 			write!(f, "{}", self.coefficient)?;
+		} else {
+			if self.factors.is_empty() {
+				return write!(f, "1");
+			}
 		}
 		for factor in self.factors.iter() {
 			match factor.as_ref() {
-				Expression::Sum(s) => write!(f, " \\left( {} \\right)", s)?,
+				Expression::Sum(s) => {
+					if self.coefficient.is_one() && self.factors.len() == 1 {
+						write!(f, "{}", s)?;
+					} else {
+						write!(f, "\\left( {} \\right)", s)?;
+					}
+				}
 				_ => write!(f, "{}", factor)?,
 			}
 		}
@@ -115,9 +193,55 @@ impl Product<'_> {
 		self.factors = factors;
 	}
 
+	pub fn simplify(&mut self) -> () {
+		self.collect_coefficients();
+		// loop 1: simplify factors
+		for factor in self.factors.iter_mut() {
+			factor.simplify();
+		}
+		let mut factors: Vec<Box<Expression>> = Vec::new();
+		let mut coefficient = self.coefficient.clone();
+		let mut product_found = false;
+		// loop 2: remove nested products
+		for factor in self.factors.iter_mut() {
+			match factor.as_mut() {
+				Expression::Product(p) => {
+					product_found = true;
+					p.simplify();
+					for f in p.factors.iter() {
+						factors.push(f.clone());
+						coefficient = self.coefficient * p.coefficient;
+					}
+				}
+				_ => {
+					let mut f = factor.clone();
+					f.simplify();
+					factors.push(f);
+				}
+			}
+		}
+		if product_found {
+			let mut prod = Product {
+				coefficient,
+				factors,
+				fraction_mode: self.fraction_mode,
+			};
+			prod.simplify();
+			*self = prod;
+		}
+	}
+
 	pub fn abs(&self) -> Product {
 		Product {
 			coefficient: self.coefficient.abs(),
+			factors: self.factors.clone(),
+			fraction_mode: self.fraction_mode,
+		}
+	}
+
+	pub fn negative(&self) -> Product {
+		Product {
+			coefficient: self.coefficient.negative(),
 			factors: self.factors.clone(),
 			fraction_mode: self.fraction_mode,
 		}
@@ -131,7 +255,7 @@ impl SubIn for Product<'_> {
 			let f = factor.sub_in(var, val);
 			match f {
 				Expression::Product(mut p) => {
-					p.collect_coefficients();
+					p.simplify();
 					if p.factors.is_empty() {
 						factors.push(Box::new(Expression::Numeral(p.coefficient)));
 					} else {
@@ -152,8 +276,7 @@ impl SubIn for Product<'_> {
 			factors,
 			fraction_mode: self.fraction_mode,
 		};
-		println!("prod: {:?}", prod);
-		prod.collect_coefficients();
+		prod.simplify();
 		Expression::Product(prod)
 	}
 }

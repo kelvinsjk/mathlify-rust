@@ -27,7 +27,7 @@ mod tests {
 		// Sec 1a, Page 60, Q7b
 		assert_eq!(
 			sum!(prod!(5, "x"), prod!(-3, sum!(prod!(7, "x"), "y"))).to_string(),
-			"5x - 3 \\left( 7x + y \\right)"
+			"5x - 3\\left( 7x + y \\right)"
 		);
 	}
 
@@ -36,7 +36,6 @@ mod tests {
 		// Sec 1a, Page 60, Q6a,b
 		let exp = sum!(prod!(4, "x"), prod!(9, "y"));
 		let exp = exp.sub_in("x", &(5 as i32).into());
-		println!("{}", exp.to_string());
 		let exp = exp.sub_in("y", &(-2 as i32).into());
 		assert_eq!(exp.to_string(), "2");
 		let exp = sum!(prod!(4, "x"), prod!(-9, "y"));
@@ -128,21 +127,27 @@ impl Sum<'_> {
 				Expression::Numeral(f) => {
 					(first_number, other_indices) = handle_number(first_number, other_indices, i, f);
 				}
-				Expression::Variable(_v) => (),
 				Expression::Product(p) => {
-					p.collect_coefficients();
+					p.simplify();
 					if p.factors.is_empty() {
 						(first_number, other_indices) =
 							handle_number(first_number, other_indices, i, &p.coefficient);
 					}
 				}
 				Expression::Sum(s) => s.simplify(),
+				Expression::Exponent(_e) => (),
+				Expression::Variable(_v) => (),
 			}
 			i += 1;
 		}
-		self.terms[first_number.unwrap().0] = Box::new(Expression::Numeral(first_number.unwrap().1));
-		for i in other_indices {
-			self.terms.remove(i);
+		match first_number {
+			Some((i, f)) => {
+				self.terms[i] = Box::new(Expression::Numeral(f));
+			}
+			_ => (),
+		}
+		for (offset, i) in other_indices.iter().enumerate() {
+			self.terms.remove(i - offset);
 		}
 	}
 }

@@ -1,10 +1,13 @@
-mod sum;
+pub mod sum;
 pub use sum::Sum;
-mod product;
+pub mod product;
 pub use product::Product;
-mod numeral;
+pub mod numeral;
 pub use numeral::Fraction;
-mod variable;
+pub mod exponent;
+pub mod variable;
+pub use exponent::Exponent;
+use std::convert::TryInto;
 
 use std::fmt;
 
@@ -46,7 +49,7 @@ macro_rules! prod {
 				_factors.push(Box::new($x.into()));
 			)*
 			let mut p = Product { coefficient: Fraction::from(1), factors: _factors, fraction_mode: false };
-			p.collect_coefficients();
+			p.simplify();
 			Expression::Product(p)
 		}
 	};
@@ -67,6 +70,25 @@ macro_rules! prod_verbatim {
 }
 
 #[macro_export]
+macro_rules! quotient {
+	( $a:expr, $b:expr ) => {{
+		let mut p = Product {
+			coefficient: Fraction::from(1),
+			factors: vec![
+				Box::new($a.into()),
+				Box::new(Expression::Exponent(Exponent {
+					base: Box::new($b.into()),
+					exponent: Box::new((-1).into()),
+				})),
+			],
+			fraction_mode: true,
+		};
+		p.simplify();
+		Expression::Product(p)
+	}};
+}
+
+#[macro_export]
 macro_rules! prod_fraction {
 	( $( $x:expr ),* ) => {
 		{
@@ -75,9 +97,19 @@ macro_rules! prod_fraction {
 				_factors.push(Box::new($x.into()));
 			)*
 			let mut p = Product { coefficient: Fraction::from(1), factors: _factors, fraction_mode: true };
-			p.collect_coefficients();
+			p.simplify();
 			Expression::Product(p)
 		}
+	};
+}
+
+#[macro_export]
+macro_rules! exp {
+	( $b:expr, $e:expr ) => {
+		Expression::Exponent(Exponent {
+			base: Box::new($b.into()),
+			exponent: Box::new($e.into()),
+		})
 	};
 }
 
@@ -85,8 +117,8 @@ macro_rules! prod_fraction {
 pub enum Expression<'a> {
 	Sum(Sum<'a>),
 	Product(Product<'a>),
+	Exponent(Exponent<'a>),
 	Numeral(Fraction),
-	//Exponent(Exponent),
 	Variable(&'a str),
 	// TODO: unary functions
 }
@@ -98,6 +130,7 @@ impl fmt::Display for Expression<'_> {
 			Expression::Product(p) => write!(f, "{}", p),
 			Expression::Numeral(n) => write!(f, "{}", n),
 			Expression::Variable(v) => write!(f, "{}", v),
+			Expression::Exponent(e) => write!(f, "{}", e),
 		}
 	}
 }
@@ -108,12 +141,15 @@ pub trait SubIn {
 
 impl SubIn for Expression<'_> {
 	fn sub_in<'a>(&'a self, var: &str, val: &Expression<'a>) -> Expression<'a> {
-		match self {
+		let mut r = match self {
 			Expression::Sum(s) => s.sub_in(var, val),
 			Expression::Product(p) => p.sub_in(var, val),
 			Expression::Numeral(n) => n.sub_in(var, val),
 			Expression::Variable(v) => v.sub_in(var, val),
-		}
+			Expression::Exponent(e) => e.sub_in(var, val),
+		};
+		r.simplify();
+		r
 	}
 }
 
@@ -139,8 +175,121 @@ impl Expression<'_> {
 					*self = p.factors[0].as_mut().clone();
 				}
 			}
-			Expression::Numeral(_) => (),
-			Expression::Variable(_) => (),
+			// number^number
+			// remove power 1
+			// exponent of products become product of exponents
+			Expression::Exponent(e) => {
+				e.base.simplify();
+				e.exponent.simplify();
+				// remove power 1
+				match (e.base.as_ref(), e.exponent.as_ref()) {
+					(Expression::Numeral(b), Expression::Numeral(e)) => {
+						if e.is_integer() {
+							let n = Box::new(Expression::Numeral(b.pow(e.numerator)));
+							*self = *n;
+						}
+					}
+					_ => {
+						if let Expression::Numeral(n) = e.exponent.as_ref() {
+							if n == &(1 as i32).into() {
+								// remove power 1
+								*self = e.base.as_mut().clone();
+								self.simplify();
+							} else if let Expression::Product(p) = e.base.as_ref() {
+								let mut factors: Vec<Box<Expression>> = Vec::new();
+								for factor in p.factors.iter() {
+									let f = Expression::Exponent(Exponent {
+										base: factor.clone(),
+										exponent: e.exponent.clone(),
+									});
+									factors.push(Box::new(f));
+								}
+								factors.push(Box::new(Expression::Exponent(Exponent {
+									base: Box::new(p.coefficient.into()),
+									exponent: e.exponent.clone(),
+								})));
+								let mut p = Product {
+									coefficient: Fraction::from(1),
+									factors,
+									fraction_mode: p.fraction_mode,
+								};
+								p.simplify();
+								*self = Expression::Product(p);
+								self.simplify();
+							}
+						} else if let Expression::Product(p) = e.base.as_ref() {
+							let mut factors: Vec<Box<Expression>> = Vec::new();
+							for factor in p.factors.iter() {
+								let f = Expression::Exponent(Exponent {
+									base: factor.clone(),
+									exponent: e.exponent.clone(),
+								});
+								factors.push(Box::new(f));
+							}
+							factors.push(Box::new(Expression::Exponent(Exponent {
+								base: Box::new(p.coefficient.into()),
+								exponent: e.exponent.clone(),
+							})));
+							let mut p = Product {
+								coefficient: Fraction::from(1),
+								factors,
+								fraction_mode: p.fraction_mode,
+							};
+							p.simplify();
+							*self = Expression::Product(p);
+							self.simplify();
+						}
+					}
+				}
+			}
+			// variable, numeral
+			_ => (),
+		}
+	}
+}
+
+impl TryInto<Fraction> for Expression<'_> {
+	type Error = ();
+	fn try_into(self) -> Result<Fraction, ()> {
+		match self {
+			Expression::Numeral(n) => Ok(n),
+			_ => Err(()),
+		}
+	}
+}
+impl TryInto<String> for Expression<'_> {
+	type Error = ();
+	fn try_into(self) -> Result<String, ()> {
+		match self {
+			Expression::Variable(v) => Ok(v.to_string()),
+			_ => Err(()),
+		}
+	}
+}
+impl<'a> TryInto<Sum<'a>> for Expression<'a> {
+	type Error = ();
+	fn try_into(self) -> Result<Sum<'a>, ()> {
+		match self {
+			Expression::Sum(s) => Ok(s),
+			_ => Err(()),
+		}
+	}
+}
+impl<'a> TryInto<Product<'a>> for Expression<'a> {
+	type Error = ();
+	fn try_into(self) -> Result<Product<'a>, ()> {
+		match self {
+			Expression::Product(p) => Ok(p),
+			_ => Err(()),
+		}
+	}
+}
+impl<'a> TryInto<Exponent<'a>> for Expression<'a> {
+	type Error = ();
+	fn try_into(self) -> Result<Exponent<'a>, ()> {
+		match self {
+			Expression::Exponent(e) => Ok(e),
+			_ => Err(()),
 		}
 	}
 }
