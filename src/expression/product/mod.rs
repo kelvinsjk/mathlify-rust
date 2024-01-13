@@ -68,6 +68,7 @@ mod tests {
 		assert_eq!(exp.to_string(), "-\\frac{13}{28}");
 		// Sec 1a, Page 61 Q10b,c,
 		let exp = sum!(quotient!(1, "y"), quotient!(-1, "x"));
+		println!("{:?}", exp);
 		assert_eq!(exp.to_string(), "\\frac{1}{y} - \\frac{1}{x}");
 		let exp = exp.sub_in("x", &(-5).into());
 		let exp = exp.sub_in("y", &Fraction::new(1, 4).into());
@@ -78,6 +79,21 @@ mod tests {
 		let exp = exp.sub_in("y", &Fraction::new(1, 4).into());
 		assert_eq!(exp.to_string(), "\\frac{21}{19}");
 		// 9b, 10c
+	}
+
+	#[test]
+	fn lexical_string() {
+		let p = Product {
+			coefficient: 1.into(),
+			factors: vec![
+				Box::new(Expression::Variable("z".to_string())),
+				Box::new(sum!(prod!(2, "a"), prod!(3, "b"))),
+				Box::new(Expression::Variable("x".to_string())),
+				Box::new(exp!("y", 2)),
+			],
+			fraction_mode: false,
+		};
+		assert_eq!(p.lexical_string(), "2a + 3by^2xz");
 	}
 }
 
@@ -245,6 +261,45 @@ impl Product {
 			factors: self.factors.clone(),
 			fraction_mode: self.fraction_mode,
 		}
+	}
+
+	// ignores the coefficient, and returns the
+	// factors as a string in the following order:
+	// sums (with to_string(), sorted by default order)
+	// exps (with to_string(), sorted by default order)
+	// variables (sorted by default order)
+	pub fn lexical_string(&self) -> String {
+		let mut sums: Vec<String> = Vec::new();
+		let mut exps: Vec<String> = Vec::new();
+		let mut vars: Vec<String> = Vec::new();
+		for factor in self.factors.iter() {
+			match factor.as_ref() {
+				Expression::Sum(s) => {
+					sums.push(s.to_string());
+				}
+				Expression::Exponent(e) => {
+					exps.push(e.to_string());
+				}
+				Expression::Variable(v) => {
+					vars.push(v.to_string());
+				}
+				_ => {}
+			}
+		}
+		sums.sort();
+		exps.sort();
+		vars.sort();
+		let mut s = String::new();
+		for sum in sums.iter() {
+			s.push_str(sum);
+		}
+		for exp in exps.iter() {
+			s.push_str(exp);
+		}
+		for var in vars.iter() {
+			s.push_str(var);
+		}
+		s
 	}
 }
 

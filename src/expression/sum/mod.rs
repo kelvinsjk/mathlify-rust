@@ -9,10 +9,11 @@ mod tests {
 
 	#[test]
 	fn sum_display() {
-		assert_eq!(crate::sum!().to_string(), "");
-		assert_eq!(sum!(1, 2, "a").to_string(), "1 + 2 + a");
-		assert_eq!(sum!(1, 2, 0).to_string(), "1 + 2");
-		assert_eq!(sum!(1, 2, prod!(0, "x")).to_string(), "1 + 2");
+		assert_eq!(crate::sum!().to_string(), "0");
+		assert_eq!(sum!(1, "a").to_string(), "1 + a");
+		assert_eq!(sum_verbatim!(1, 2, "a").to_string(), "1 + 2 + a");
+		assert_eq!(sum!(1, "x", 0).to_string(), "1 + x");
+		assert_eq!(sum!(1, "y", prod!(0, "x")).to_string(), "1 + y");
 		assert_eq!(sum_verbatim!(1, 2, 0).to_string(), "1 + 2 + 0");
 		assert_eq!(sum_verbatim!(1, prod!("x", 0), 2).to_string(), "1 + 0 + 2");
 		assert_eq!(
@@ -61,6 +62,9 @@ pub struct Sum {
 
 impl fmt::Display for Sum {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+		if self.terms.is_empty() {
+			return write!(f, "0");
+		}
 		let mut terms = self.terms.iter();
 		if let Some(first) = terms.next() {
 			write!(f, "{}", first)?;
@@ -100,6 +104,7 @@ impl Sum {
 	}
 
 	pub fn simplify(&mut self) -> () {
+		self.remove_zeros();
 		// remove nested sums
 		let mut terms: Vec<Box<Expression>> = Vec::new();
 		for term in self.terms.iter() {

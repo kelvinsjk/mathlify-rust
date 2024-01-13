@@ -1,4 +1,5 @@
 use crate::expression::{Expression, SubIn};
+use std::convert::Into;
 use std::fmt;
 
 #[cfg(test)]
@@ -91,5 +92,11 @@ impl SubIn for Exponent {
 		let mut exp = Expression::Exponent(e);
 		exp.simplify();
 		exp
+	}
+}
+
+impl Into<Expression> for Exponent {
+	fn into(self) -> Expression {
+		Expression::Exponent(self)
 	}
 }
