@@ -52,7 +52,7 @@ macro_rules! prod {
 			$(
 				_factors.push(Box::new($x.into()));
 			)*
-			let mut p = Product { coefficient: Fraction::from(1), factors: _factors, fraction_mode: false };
+			let mut p = Product { coefficient: Fraction::from(1), factors: _factors, };
 			p.simplify();
 			Expression::Product(p)
 		}
@@ -67,7 +67,7 @@ macro_rules! prod_verbatim {
 			$(
 				_factors.push(Box::new($x.into()));
 			)*
-			let p = Product { coefficient: Fraction::from(1), factors: _factors, fraction_mode: false };
+			let p = Product { coefficient: Fraction::from(1), factors: _factors,  };
 			Expression::Product(p)
 		}
 	};
@@ -92,7 +92,7 @@ macro_rules! prod_fraction {
 			$(
 				_factors.push(Box::new($x.into()));
 			)*
-			let mut p = Product { coefficient: Fraction::from(1), factors: _factors, fraction_mode: true };
+			let mut p = Product { coefficient: Fraction::from(1), factors: _factors,  };
 			p.simplify();
 			Expression::Product(p)
 		}
@@ -251,18 +251,7 @@ impl Expression {
 				if p.factors.len() == 0 {
 					*self = Expression::Numeral(p.coefficient.clone());
 				} else if p.factors.len() == 1 && p.coefficient == 1.into() {
-					// if fraction mode and negative exponent, don't remove
-					if !p.fraction_mode {
-						*self = p.factors[0].as_mut().clone();
-					} else {
-						if let Expression::Exponent(e) = p.factors[0].as_ref() {
-							if let Expression::Numeral(n) = e.exponent.as_ref() {
-								if n.is_positive() {
-									*self = p.factors[0].as_mut().clone();
-								}
-							}
-						}
-					}
+					*self = p.factors[0].as_mut().clone();
 				}
 			}
 			Expression::Exponent(e) => {
@@ -299,7 +288,6 @@ impl Expression {
 								let mut p = Product {
 									coefficient: Fraction::from(1),
 									factors,
-									fraction_mode: p.fraction_mode,
 								};
 								p.simplify();
 								*self = Expression::Product(p);
@@ -322,7 +310,6 @@ impl Expression {
 							let mut p = Product {
 								coefficient: Fraction::from(1),
 								factors,
-								fraction_mode: p.fraction_mode,
 							};
 							p.simplify();
 							*self = Expression::Product(p);

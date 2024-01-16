@@ -1,4 +1,3 @@
-use crate::expression::exponent::Exponent;
 use crate::expression::numeral::Fraction;
 use crate::expression::{Expression, SubIn};
 use std::fmt;
@@ -90,7 +89,6 @@ mod tests {
 				Box::new(Expression::Variable("x".to_string())),
 				Box::new(exp!("y", 2)),
 			],
-			fraction_mode: false,
 		};
 		assert_eq!(p.lexical_string(), "2a + 3by^2xz");
 	}
@@ -100,67 +98,12 @@ mod tests {
 pub struct Product {
 	pub coefficient: Fraction,
 	pub factors: Vec<Box<Expression>>,
-	pub fraction_mode: bool,
 }
 
 impl fmt::Display for Product {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 		if self.coefficient == 0.into() {
 			return write!(f, "0");
-		}
-		// fraction mode: \\frac{x}{3y}
-		if self.fraction_mode {
-			let mut num_factors: Vec<Box<Expression>> = Vec::new();
-			let mut den_factors: Vec<Box<Expression>> = Vec::new();
-			for factor in self.factors.iter() {
-				match factor.as_ref() {
-					Expression::Exponent(e) => match e.exponent.as_ref() {
-						Expression::Numeral(n) => {
-							if n.is_negative() {
-								let mut exp = Expression::Exponent(Exponent {
-									base: e.base.clone(),
-									exponent: Box::new(Expression::Numeral(n.negative())),
-								});
-								exp.simplify();
-								den_factors.push(Box::new(exp));
-							} else {
-								num_factors.push(factor.clone());
-							}
-						}
-						Expression::Product(p) => {
-							if p.coefficient.is_negative() {
-								let mut exp = Expression::Exponent(Exponent {
-									base: e.base.clone(),
-									exponent: Box::new(Expression::Product(p.negative())),
-								});
-								exp.simplify();
-								den_factors.push(Box::new(exp));
-							} else {
-								num_factors.push(factor.clone());
-							}
-						}
-						_ => {
-							num_factors.push(factor.clone());
-						}
-					},
-					_ => {
-						num_factors.push(factor.clone());
-					}
-				}
-			}
-			if !(self.coefficient.denominator == 1 && den_factors.is_empty()) {
-				let den = Product {
-					coefficient: (self.coefficient.denominator as i32).into(),
-					factors: den_factors,
-					fraction_mode: false,
-				};
-				let num = Product {
-					coefficient: self.coefficient.numerator.into(),
-					factors: num_factors,
-					fraction_mode: false,
-				};
-				return write!(f, "\\frac{{{}}}{{{}}}", num, den);
-			}
 		}
 		// auto mode: 1/3 xy^-1
 		if self.coefficient == (-1).into() {
@@ -238,7 +181,6 @@ impl Product {
 			let mut prod = Product {
 				coefficient,
 				factors,
-				fraction_mode: self.fraction_mode,
 			};
 			prod.simplify();
 			*self = prod;
@@ -249,7 +191,6 @@ impl Product {
 		Product {
 			coefficient: self.coefficient.abs(),
 			factors: self.factors.clone(),
-			fraction_mode: self.fraction_mode,
 		}
 	}
 
@@ -257,7 +198,6 @@ impl Product {
 		Product {
 			coefficient: self.coefficient.negative(),
 			factors: self.factors.clone(),
-			fraction_mode: self.fraction_mode,
 		}
 	}
 
@@ -327,7 +267,6 @@ impl SubIn for Product {
 		let mut prod = Product {
 			coefficient: self.coefficient.clone(),
 			factors,
-			fraction_mode: self.fraction_mode,
 		};
 		prod.simplify();
 		Expression::Product(prod)
