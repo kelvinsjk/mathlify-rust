@@ -10,7 +10,7 @@ fn quotient() {
 	assert_eq!(exp.to_string(), "-13");
 	let exp = sum!(
 		quotient!(prod!(exp!("x", 2), "z"), 5),
-		prod_fraction!(
+		prod!(
 			-1,
 			quotient!(
 				sum!(prod!(3, "z"), prod!(-1, "y")),

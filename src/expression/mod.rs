@@ -85,21 +85,6 @@ macro_rules! quotient {
 }
 
 #[macro_export]
-macro_rules! prod_fraction {
-	( $( $x:expr ),* ) => {
-		{
-			let mut _factors = Vec::new();
-			$(
-				_factors.push(Box::new($x.into()));
-			)*
-			let mut p = Product { coefficient: Fraction::from(1), factors: _factors,  };
-			p.simplify();
-			Expression::Product(p)
-		}
-	};
-}
-
-#[macro_export]
 macro_rules! exp {
 	( $b:expr, $e:expr ) => {
 		Expression::Exponent(Exponent {

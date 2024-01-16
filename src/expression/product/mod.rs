@@ -25,10 +25,7 @@ mod tests {
 			"\\frac{1}{3}xy"
 		);
 		// Sec 1a, Page 60, Q6d
-		assert_eq!(
-			prod_fraction!(Fraction::new(1, 3), "x", "y").to_string(),
-			"\\frac{xy}{3}"
-		);
+		assert_eq!(quotient!(prod!("x", "y"), 3).to_string(), "\\frac{xy}{3}");
 		// Sec 1a, Page 61, Q9c
 		assert_eq!(
 			sum!(prod!(5, sum!("x", prod!(2, "y"))), prod!(-9, "x")).to_string(),
