@@ -68,7 +68,6 @@ mod tests {
 		assert_eq!(exp.to_string(), "-\\frac{13}{28}");
 		// Sec 1a, Page 61 Q10b,c,
 		let exp = sum!(quotient!(1, "y"), quotient!(-1, "x"));
-		println!("{:?}", exp);
 		assert_eq!(exp.to_string(), "\\frac{1}{y} - \\frac{1}{x}");
 		let exp = exp.sub_in("x", &(-5).into());
 		let exp = exp.sub_in("y", &Fraction::new(1, 4).into());
@@ -160,7 +159,6 @@ impl fmt::Display for Product {
 					factors: num_factors,
 					fraction_mode: false,
 				};
-				//println!("den: {:?}", den);
 				return write!(f, "\\frac{{{}}}{{{}}}", num, den);
 			}
 		}

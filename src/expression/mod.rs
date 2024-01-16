@@ -1,14 +1,16 @@
-pub mod sum;
-pub use sum::Sum;
-pub mod product;
-pub use product::Product;
-pub mod numeral;
-pub use numeral::Fraction;
 pub mod exponent;
+pub mod numeral;
+pub mod product;
+pub mod quotient;
+pub mod sum;
 pub mod variable;
 pub use exponent::Exponent;
+pub use numeral::Fraction;
+pub use product::Product;
+pub use quotient::Quotient;
 use std::collections::HashMap;
 use std::convert::TryInto;
+pub use sum::Sum;
 
 use std::fmt;
 
@@ -74,19 +76,11 @@ macro_rules! prod_verbatim {
 #[macro_export]
 macro_rules! quotient {
 	( $a:expr, $b:expr ) => {{
-		let mut p = Product {
-			coefficient: Fraction::from(1),
-			factors: vec![
-				Box::new($a.into()),
-				Box::new(Expression::Exponent(Exponent {
-					base: Box::new($b.into()),
-					exponent: Box::new((-1).into()),
-				})),
-			],
-			fraction_mode: true,
+		let q = Quotient {
+			numerator: Box::new($a.into()),
+			denominator: Box::new($b.into()),
 		};
-		p.simplify();
-		Expression::Product(p)
+		Expression::Quotient(q)
 	}};
 }
 
@@ -119,6 +113,7 @@ macro_rules! exp {
 pub enum Expression {
 	Sum(Sum),
 	Product(Product),
+	Quotient(Quotient),
 	Exponent(Exponent),
 	Numeral(Fraction),
 	Variable(String),
@@ -130,9 +125,10 @@ impl fmt::Display for Expression {
 		match self {
 			Expression::Sum(s) => write!(f, "{}", s),
 			Expression::Product(p) => write!(f, "{}", p),
-			Expression::Numeral(n) => write!(f, "{}", n),
-			Expression::Variable(v) => write!(f, "{}", v),
+			Expression::Quotient(q) => write!(f, "{}", q),
 			Expression::Exponent(e) => write!(f, "{}", e),
+			Expression::Variable(v) => write!(f, "{}", v),
+			Expression::Numeral(n) => write!(f, "{}", n),
 		}
 	}
 }
@@ -146,9 +142,10 @@ impl SubIn for Expression {
 		let mut r = match self {
 			Expression::Sum(s) => s.sub_in(var, val),
 			Expression::Product(p) => p.sub_in(var, val),
-			Expression::Numeral(n) => n.sub_in(var, val),
-			Expression::Variable(v) => v.sub_in(var, val),
+			Expression::Quotient(q) => q.sub_in(var, val),
 			Expression::Exponent(e) => e.sub_in(var, val),
+			Expression::Variable(v) => v.sub_in(var, val),
+			Expression::Numeral(n) => n.sub_in(var, val),
 		};
 		r.simplify();
 		r
@@ -335,6 +332,19 @@ impl Expression {
 				}
 			}
 			// variable, numeral
+			Expression::Quotient(q) => {
+				if let (Expression::Numeral(n), Expression::Numeral(d)) =
+					(q.numerator.as_mut(), q.denominator.as_mut())
+				{
+					*self = Expression::Numeral(*n / *d);
+					self.simplify();
+				} else if let Expression::Numeral(n) = q.denominator.as_ref() {
+					if n.is_one() {
+						*self = q.numerator.as_mut().clone();
+						self.simplify();
+					}
+				}
+			}
 			_ => (),
 		}
 	}
@@ -381,6 +391,15 @@ impl TryInto<Exponent> for Expression {
 	fn try_into(self) -> Result<Exponent, ()> {
 		match self {
 			Expression::Exponent(e) => Ok(e),
+			_ => Err(()),
+		}
+	}
+}
+impl TryInto<Quotient> for Expression {
+	type Error = ();
+	fn try_into(self) -> Result<Quotient, ()> {
+		match self {
+			Expression::Quotient(q) => Ok(q),
 			_ => Err(()),
 		}
 	}

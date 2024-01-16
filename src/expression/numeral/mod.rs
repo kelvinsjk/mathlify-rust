@@ -2,7 +2,7 @@ use crate::expression::numeral::gcd::gcd;
 use crate::expression::{Expression, SubIn};
 use std::convert::{From, Into};
 use std::fmt;
-use std::ops::{Add, Mul};
+use std::ops::{Add, Div, Mul};
 mod gcd;
 
 #[cfg(test)]
@@ -92,11 +92,18 @@ impl Fraction {
 		self.numerator == 1 && self.denominator == 1
 	}
 
+	pub fn is_negative_one(&self) -> bool {
+		self.numerator == -1 && self.denominator == 1
+	}
+
 	pub fn negative(&self) -> Fraction {
 		Fraction::new(-self.numerator, self.denominator as i32)
 	}
 
 	pub fn reciprocal(&self) -> Fraction {
+		if &self.denominator == &0 {
+			panic!("Denominator cannot be zero");
+		}
 		Fraction::new(self.denominator.clone() as i32, self.numerator.clone())
 	}
 
@@ -143,6 +150,19 @@ impl Mul<Fraction> for Fraction {
 		Fraction::new(
 			self.numerator * rhs.numerator,
 			self.denominator as i32 * rhs.denominator as i32,
+		)
+	}
+}
+
+impl Div<Fraction> for Fraction {
+	type Output = Fraction;
+	fn div(self, rhs: Fraction) -> Fraction {
+		if rhs == Fraction::from(0) {
+			panic!("Cannot divide by zero");
+		}
+		Fraction::new(
+			self.numerator * rhs.denominator as i32,
+			self.denominator as i32 * rhs.numerator,
 		)
 	}
 }

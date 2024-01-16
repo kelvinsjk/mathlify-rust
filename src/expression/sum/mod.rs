@@ -72,6 +72,11 @@ impl fmt::Display for Sum {
 				match term.as_ref() {
 					Expression::Numeral(n) if n.numerator < 0 => write!(f, " - {}", n.abs())?,
 					Expression::Product(p) if p.coefficient.numerator < 0 => write!(f, " - {}", p.abs())?,
+					Expression::Quotient(q) => match q.numerator.as_ref() {
+						Expression::Numeral(n) if n.numerator < 0 => write!(f, " - {}", q.abs())?,
+						Expression::Product(p) if p.coefficient.numerator < 0 => write!(f, " - {}", p.abs())?,
+						_ => write!(f, " + {}", term)?,
+					},
 					_ => write!(f, " + {}", term)?,
 				}
 			}
@@ -140,6 +145,7 @@ impl Sum {
 					}
 				}
 				Expression::Sum(s) => s.simplify(),
+				Expression::Quotient(_q) => (),
 				Expression::Exponent(_e) => (),
 				Expression::Variable(_v) => (),
 			}
