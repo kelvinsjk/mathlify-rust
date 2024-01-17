@@ -16,8 +16,8 @@ mod tests {
 			prod_verbatim!(2, "x", Fraction::new(1, 2), "y").to_string(),
 			"2x\\frac{1}{2}y"
 		);
-		assert_eq!(prod!("x", -1).to_string(), "-x");
-		assert_eq!(prod!(-1).to_string(), "-1");
+		assert_eq!(prod!("x", -1).to_string(), "- x");
+		assert_eq!(prod!(-1).to_string(), "- 1");
 		// Sec 1a, Page 60, Q6c
 		assert_eq!(prod!(3, "x", "y").to_string(), "3xy");
 		assert_eq!(
@@ -39,17 +39,17 @@ mod tests {
 		let exp = prod!(3, "x", "y");
 		let exp = exp.sub_in("x", &(5 as i32).into());
 		let exp = exp.sub_in("y", &(-2 as i32).into());
-		assert_eq!(exp.to_string(), "-30");
+		assert_eq!(exp.to_string(), "- 30");
 		let exp = prod!(Fraction::new(1, 3), "x", "y");
 		let exp = exp.sub_in("x", &(5).into());
 		let exp = exp.sub_in("y", &(-2 as i32).into());
-		assert_eq!(exp.to_string(), "-\\frac{10}{3}");
+		assert_eq!(exp.to_string(), "- \\frac{10}{3}");
 		// Sec 1a, Page 61, Q9c
 		let exp = sum!(prod!(5, sum!("x", prod!(2, "y"))), prod!(-9, "x"));
 		let exp = exp.sub_in("x", &Fraction::new(1, 3).into());
 		let exp = exp.sub_in("y", &Fraction::new(-1, 4).into());
 		let f: Fraction = exp.try_into().unwrap();
-		assert_eq!(f.to_mixed_fraction(), "-3\\frac{5}{6}");
+		assert_eq!(f.to_mixed_fraction(), "- 3\\frac{5}{6}");
 	}
 
 	#[test]
@@ -61,7 +61,7 @@ mod tests {
 		assert_eq!(exp.to_string(), "\\frac{x}{5y} + \\frac{y}{5x}");
 		let exp = exp.sub_in("x", &(-4).into());
 		let exp = exp.sub_in("y", &(7).into());
-		assert_eq!(exp.to_string(), "-\\frac{13}{28}");
+		assert_eq!(exp.to_string(), "- \\frac{13}{28}");
 		// Sec 1a, Page 61 Q10b,c,
 		let exp = sum!(quotient!(1, "y"), quotient!(-1, "x"));
 		assert_eq!(exp.to_string(), "\\frac{1}{y} - \\frac{1}{x}");
@@ -105,9 +105,9 @@ impl fmt::Display for Product {
 		// auto mode: 1/3 xy^-1
 		if self.coefficient == (-1).into() {
 			if self.factors.is_empty() {
-				return write!(f, "-1");
+				return write!(f, "- 1");
 			}
-			write!(f, "-")?;
+			write!(f, "- ")?;
 		} else if self.coefficient != 1.into() {
 			write!(f, "{}", self.coefficient)?;
 		} else {

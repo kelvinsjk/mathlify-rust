@@ -28,7 +28,7 @@ mod tests {
 		let exp = prod!(3, "x", "y");
 		let exp = exp.sub_in("x", &(5 as i32).into());
 		let exp = exp.sub_in("y", &(-2 as i32).into());
-		assert_eq!(exp.to_string(), "-30");
+		assert_eq!(exp.to_string(), "- 30");
 	}
 }
 

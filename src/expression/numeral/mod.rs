@@ -34,12 +34,15 @@ pub struct Fraction {
 impl fmt::Display for Fraction {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 		if self.denominator == 1 {
+			if self.numerator < 0 {
+				return write!(f, "- {}", self.numerator.abs());
+			}
 			return write!(f, "{}", self.numerator);
 		}
 		if self.numerator == 0 {
 			return write!(f, "0");
 		}
-		let sign = if self.numerator < 0 { "-" } else { "" };
+		let sign = if self.numerator < 0 { "- " } else { "" };
 		write!(
 			f,
 			"{}\\frac{{{}}}{{{}}}",
@@ -128,7 +131,7 @@ impl Fraction {
 		if self.is_integer() {
 			return format!("{}", self.numerator);
 		}
-		let sign = if self.numerator < 0 { "-" } else { "" };
+		let sign = if self.numerator < 0 { "- " } else { "" };
 		let numerator = self.numerator.abs() as u32;
 		let whole = numerator / self.denominator;
 		let numerator = numerator % self.denominator;

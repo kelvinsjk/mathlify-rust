@@ -71,7 +71,7 @@ impl fmt::Display for Sum {
 			for term in terms {
 				match term.as_ref() {
 					Expression::Numeral(n) if n.numerator < 0 => write!(f, " - {}", n.abs())?,
-					Expression::Product(p) if p.coefficient.numerator < 0 => write!(f, " - {}", p.abs())?,
+					Expression::Product(p) if p.coefficient.numerator < 0 => write!(f, " {}", p)?,
 					Expression::Quotient(q) => match q.numerator.as_ref() {
 						Expression::Numeral(n) if n.numerator < 0 => write!(f, " - {}", q.abs())?,
 						Expression::Product(p) if p.coefficient.numerator < 0 => write!(f, " - {}", p.abs())?,
@@ -108,9 +108,7 @@ impl Sum {
 		self.terms = terms;
 	}
 
-	pub fn simplify(&mut self) -> () {
-		self.remove_zeros();
-		// remove nested sums
+	pub fn remove_nested_sums(&mut self) -> () {
 		let mut terms: Vec<Box<Expression>> = Vec::new();
 		for term in self.terms.iter() {
 			match term.as_ref() {
@@ -125,6 +123,11 @@ impl Sum {
 			}
 		}
 		self.terms = terms;
+	}
+
+	pub fn simplify(&mut self) -> () {
+		self.remove_zeros();
+		self.remove_nested_sums();
 		// combine all numbers
 		let mut first_number: Option<(usize, Fraction)> = Option::None;
 		// (index, val)

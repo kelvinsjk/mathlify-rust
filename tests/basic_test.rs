@@ -7,7 +7,7 @@ fn quotient() {
 	assert_eq!(exp.to_string(), "\\frac{3}{x} + \\frac{4}{y} - 6");
 	let exp = exp.sub_in("x", &Fraction::new(1, 3).into());
 	let exp = exp.sub_in("y", &Fraction::new(-1, 4).into());
-	assert_eq!(exp.to_string(), "-13");
+	assert_eq!(exp.to_string(), "- 13");
 	let exp = sum!(
 		quotient!(prod!(exp!("x", 2), "z"), 5),
 		prod!(
@@ -22,5 +22,5 @@ fn quotient() {
 	let exp = exp.sub_in("x", &Fraction::new(-1, 2).into());
 	let exp = exp.sub_in("y", &0.into());
 	let exp = exp.sub_in("z", &4.into());
-	assert_eq!(exp.to_string(), "-\\frac{19}{5}");
+	assert_eq!(exp.to_string(), "- \\frac{19}{5}");
 }

@@ -8,7 +8,7 @@ pub use exponent::Exponent;
 pub use numeral::Fraction;
 pub use product::Product;
 pub use quotient::Quotient;
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::convert::TryInto;
 pub use sum::Sum;
 
@@ -223,20 +223,28 @@ impl Expression {
 						}
 					}
 					indices_to_remove.sort();
+					let mutated = indices_to_remove.len() > 0;
 					for (offset, i) in indices_to_remove.iter().enumerate() {
 						s.terms.remove(i - offset);
+					}
+					if mutated {
+						self.simplify();
 					}
 				}
 			}
 			Expression::Product(p) => {
-				// remove singleton products
-				for f in p.factors.iter_mut() {
-					f.simplify();
-				}
-				if p.factors.len() == 0 {
-					*self = Expression::Numeral(p.coefficient.clone());
-				} else if p.factors.len() == 1 && p.coefficient == 1.into() {
-					*self = p.factors[0].as_mut().clone();
+				if p.coefficient.is_zero() {
+					*self = Expression::Numeral(Fraction::from(0));
+				} else {
+					// remove singleton products
+					for f in p.factors.iter_mut() {
+						f.simplify();
+					}
+					if p.factors.len() == 0 {
+						*self = Expression::Numeral(p.coefficient.clone());
+					} else if p.factors.len() == 1 && p.coefficient == 1.into() {
+						*self = p.factors[0].as_mut().clone();
+					}
 				}
 			}
 			Expression::Exponent(e) => {
@@ -316,6 +324,93 @@ impl Expression {
 						self.simplify();
 					}
 				}
+			}
+			_ => (),
+		}
+	}
+
+	pub fn expand(&mut self) -> () {
+		match self {
+			Expression::Product(p) => {
+				for f in p.factors.iter_mut() {
+					f.expand();
+				}
+				// find sums
+				let mut sums: VecDeque<Sum> = VecDeque::new();
+				let mut others: Vec<Box<Expression>> = Vec::new();
+				for f in p.factors.iter() {
+					if let Expression::Sum(s) = f.as_ref() {
+						sums.push_back(s.clone());
+					} else {
+						others.push(f.clone());
+					}
+				}
+				if sums.len() > 0 {
+					let mut new_terms: Vec<Box<Expression>> = sums.pop_front().unwrap().terms;
+					while sums.len() > 0 {
+						let mut terms_to_multiply = sums.pop_front().unwrap().terms;
+						for t1 in new_terms.iter_mut() {
+							for t2 in terms_to_multiply.iter_mut() {
+								let mut t = prod!(t1.as_ref().clone(), t2.as_ref().clone());
+								t.simplify();
+								*t1 = Box::new(t);
+							}
+						}
+					}
+					let mut terms: Vec<Box<Expression>> = Vec::new();
+					for t in new_terms.iter() {
+						let mut factors = others.clone();
+						factors.push(t.clone());
+						terms.push(Box::new(Expression::Product(Product {
+							coefficient: p.coefficient.clone(),
+							factors,
+						})));
+					}
+					let mut s = Sum { terms };
+					s.simplify();
+					*self = Expression::Sum(s);
+				}
+			}
+			Expression::Sum(s) => {
+				for t in s.terms.iter_mut() {
+					t.expand();
+				}
+			}
+			Expression::Quotient(q) => {
+				q.numerator.expand();
+				q.denominator.expand();
+			}
+			Expression::Exponent(e) => {
+				e.base.expand();
+				e.exponent.expand();
+			}
+			_ => (),
+		}
+		self.remove_nested_sums();
+	}
+
+	pub fn expand_and_simplify(&mut self) -> () {
+		self.expand();
+		self.simplify();
+	}
+
+	pub fn remove_nested_sums(&mut self) -> () {
+		match self {
+			Expression::Sum(s) => {
+				s.remove_nested_sums();
+			}
+			Expression::Product(p) => {
+				for f in p.factors.iter_mut() {
+					f.remove_nested_sums();
+				}
+			}
+			Expression::Quotient(q) => {
+				q.numerator.remove_nested_sums();
+				q.denominator.remove_nested_sums();
+			}
+			Expression::Exponent(e) => {
+				e.base.remove_nested_sums();
+				e.exponent.remove_nested_sums();
 			}
 			_ => (),
 		}

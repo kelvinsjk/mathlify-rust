@@ -15,14 +15,14 @@ fn like_terms() {
 	exp.simplify();
 	assert_eq!(exp.to_string(), "3x");
 	let mut exp = sum_verbatim!(prod!(-6, "x"), "x");
-	assert_eq!(exp.to_string(), "-6x + x");
+	assert_eq!(exp.to_string(), "- 6x + x");
 	exp.simplify();
-	assert_eq!(exp.to_string(), "-5x");
+	assert_eq!(exp.to_string(), "- 5x");
 	// Sec 1a, Page 63, Q2a,c,g
 	let mut exp = sum_verbatim!(prod!(3, "x"), 10, prod!(-6, "x"), 5);
 	assert_eq!(exp.to_string(), "3x + 10 - 6x + 5");
 	exp.simplify();
-	assert_eq!(exp.to_string(), "-3x + 15");
+	assert_eq!(exp.to_string(), "- 3x + 15");
 	let mut exp = sum_verbatim!(prod!(5, "x"), prod!(8, "y"), prod!(7, "x"), prod!(-1, "y"));
 	assert_eq!(exp.to_string(), "5x + 8y + 7x - y");
 	exp.simplify();
@@ -37,5 +37,5 @@ fn like_terms() {
 	);
 	assert_eq!(exp.to_string(), "4x - y + 12 + 5y - 9 - 9x");
 	exp.simplify();
-	assert_eq!(exp.to_string(), "-5x + 4y + 3");
+	assert_eq!(exp.to_string(), "- 5x + 4y + 3");
 }
