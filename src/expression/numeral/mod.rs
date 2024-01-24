@@ -2,7 +2,8 @@ use crate::expression::numeral::gcd::gcd;
 use crate::expression::{Expression, SubIn};
 use std::convert::{From, Into};
 use std::fmt;
-use std::ops::{Add, Div, Mul};
+use std::ops::{Add, Div, Mul, Sub};
+pub mod fraction_gcd;
 mod gcd;
 
 #[cfg(test)]
@@ -21,6 +22,16 @@ mod tests {
 		} else {
 			panic!("Expected fraction after subbing in");
 		}
+	}
+
+	#[test]
+	fn ordering() {
+		let a = Fraction::new(1, 2);
+		let b = Fraction::new(1, 3);
+		assert!(a > b);
+		let m = cmp::min(b, a);
+		println!("{}, {}, {}", a > b, a < b, a == b);
+		assert_eq!(m.to_string(), "\\frac{1}{3}");
 	}
 }
 
@@ -87,8 +98,16 @@ impl Fraction {
 		self.numerator == 0
 	}
 
+	pub fn is_nonzero(&self) -> bool {
+		!self.is_zero()
+	}
+
 	pub fn is_negative(&self) -> bool {
 		self.numerator < 0
+	}
+
+	pub fn is_nonnegative(&self) -> bool {
+		!self.is_negative()
 	}
 
 	pub fn is_one(&self) -> bool {
@@ -180,9 +199,61 @@ impl Add<Fraction> for Fraction {
 	}
 }
 
+impl Sub<Fraction> for Fraction {
+	type Output = Fraction;
+	fn sub(self, rhs: Fraction) -> Fraction {
+		self + rhs.negative()
+	}
+}
+
 impl PartialEq for Fraction {
 	fn eq(&self, other: &Self) -> bool {
 		self.numerator * other.denominator as i32 == self.denominator as i32 * other.numerator
+	}
+}
+
+impl Eq for Fraction {}
+
+impl PartialOrd for Fraction {
+	fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+		let lhs: f32 = self.numerator as f32 / self.denominator as f32;
+		let rhs: f32 = other.numerator as f32 / other.denominator as f32;
+		lhs.partial_cmp(&rhs)
+	}
+}
+
+impl Ord for Fraction {
+	fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+		let lhs: f32 = self.numerator as f32 / self.denominator as f32;
+		let rhs: f32 = other.numerator as f32 / other.denominator as f32;
+		lhs.partial_cmp(&rhs).unwrap()
+	}
+	fn max(self, other: Self) -> Self {
+		if self > other {
+			self
+		} else {
+			other
+		}
+	}
+	fn min(self, other: Self) -> Self {
+		if self < other {
+			self
+		} else {
+			other
+		}
+	}
+	fn clamp(self, min: Self, max: Self) -> Self
+	where
+		Self: Sized,
+		Self: PartialOrd,
+	{
+		if self < min {
+			min
+		} else if self > max {
+			max
+		} else {
+			self
+		}
 	}
 }
 

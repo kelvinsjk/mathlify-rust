@@ -5,14 +5,14 @@ pub mod quotient;
 pub mod sum;
 pub mod variable;
 pub use exponent::Exponent;
+pub use numeral::fraction_gcd::fraction_gcd;
 pub use numeral::Fraction;
 pub use product::Product;
 pub use quotient::Quotient;
 use std::collections::{HashMap, VecDeque};
 use std::convert::TryInto;
+use std::{cmp, fmt};
 pub use sum::Sum;
-
-use std::fmt;
 
 #[macro_export]
 macro_rules! sum {
@@ -138,118 +138,141 @@ impl SubIn for Expression {
 }
 
 impl Expression {
+	pub fn remove_singletons(&mut self) -> () {
+		match self {
+			Expression::Sum(s) => {
+				for t in s.terms.iter_mut() {
+					t.remove_singletons();
+				}
+				if s.terms.len() == 1 {
+					*self = s.terms[0].as_mut().clone();
+				}
+			}
+			Expression::Product(p) => {
+				for f in p.factors.iter_mut() {
+					f.remove_singletons();
+				}
+				if p.coefficient.is_zero() {
+					*self = Expression::Numeral(Fraction::from(0));
+					return;
+				}
+				if p.factors.len() == 0 {
+					*self = Expression::Numeral(p.coefficient);
+				} else if p.factors.len() == 1 && p.coefficient == 1.into() {
+					*self = p.factors[0].as_mut().clone();
+				}
+			}
+			Expression::Quotient(q) => {
+				q.numerator.remove_singletons();
+				q.denominator.remove_singletons();
+			}
+			Expression::Exponent(e) => {
+				e.base.remove_singletons();
+				e.exponent.remove_singletons();
+			}
+			_ => (),
+		}
+	}
+
 	pub fn simplify(&mut self) -> () {
+		self.remove_singletons();
 		match self {
 			Expression::Sum(s) => {
 				s.simplify();
 				for t in s.terms.iter_mut() {
 					t.simplify();
 				}
-				// remove singleton sums
-				if s.terms.len() == 1 {
-					*self = s.terms[0].as_mut().clone();
-				} else {
-					// combine like terms
-					let mut i = 0;
-					// variable string: (coefficient, [term index])
-					let mut term_map: HashMap<String, (Fraction, Vec<usize>)> =
-						std::collections::HashMap::new();
-					for t in s.terms.iter() {
-						match t.as_ref() {
+				// combine like terms
+				let mut i = 0;
+				// variable string: (coefficient, [term index])
+				let mut term_map: HashMap<String, (Fraction, Vec<usize>)> =
+					std::collections::HashMap::new();
+				for t in s.terms.iter() {
+					match t.as_ref() {
+						Expression::Product(p) => {
+							let lexical_string = p.lexical_string();
+							if term_map.contains_key(&lexical_string) {
+								let (coefficient, indices) = term_map.get(&lexical_string).unwrap();
+								let coefficient = *coefficient + p.coefficient.clone();
+								let mut indices = indices.clone();
+								indices.push(i);
+								term_map.insert(lexical_string, (coefficient, indices));
+							} else {
+								term_map.insert(lexical_string, (p.coefficient.clone(), vec![i]));
+							}
+						}
+						Expression::Exponent(e) => {
+							let string = e.to_string();
+							if term_map.contains_key(&string) {
+								let (coefficient, indices) = term_map.get(&string).unwrap();
+								let coefficient = *coefficient + 1.into();
+								let mut indices = indices.clone();
+								indices.push(i);
+								term_map.insert(string, (coefficient, indices));
+							} else {
+								term_map.insert(string, (1.into(), vec![i]));
+							}
+						}
+						Expression::Variable(v) => {
+							if term_map.contains_key(v) {
+								let (coefficient, indices) = term_map.get(v).unwrap();
+								let coefficient = *coefficient + 1.into();
+								let mut indices = indices.clone();
+								indices.push(i);
+								term_map.insert(v.to_string(), (coefficient, indices));
+							} else {
+								term_map.insert(v.to_string(), (1.into(), vec![i]));
+							}
+						}
+						_ => (),
+					}
+					i += 1;
+				}
+				let mut indices_to_remove: Vec<usize> = Vec::new();
+				for (_, (coefficient, indices)) in term_map.iter() {
+					if indices.len() > 1 {
+						let mut indices = indices.iter();
+						let first = indices.next().unwrap();
+						let term_to_modify = s.terms[*first].as_mut();
+						match term_to_modify {
 							Expression::Product(p) => {
-								let lexical_string = p.lexical_string();
-								if term_map.contains_key(&lexical_string) {
-									let (coefficient, indices) = term_map.get(&lexical_string).unwrap();
-									let coefficient = *coefficient + p.coefficient.clone();
-									let mut indices = indices.clone();
-									indices.push(i);
-									term_map.insert(lexical_string, (coefficient, indices));
-								} else {
-									term_map.insert(lexical_string, (p.coefficient.clone(), vec![i]));
-								}
+								p.coefficient = coefficient.clone();
 							}
 							Expression::Exponent(e) => {
-								let string = e.to_string();
-								if term_map.contains_key(&string) {
-									let (coefficient, indices) = term_map.get(&string).unwrap();
-									let coefficient = *coefficient + 1.into();
-									let mut indices = indices.clone();
-									indices.push(i);
-									term_map.insert(string, (coefficient, indices));
-								} else {
-									term_map.insert(string, (1.into(), vec![i]));
+								if !coefficient.is_one() {
+									*term_to_modify = prod!(coefficient.clone(), e.clone());
 								}
 							}
 							Expression::Variable(v) => {
-								if term_map.contains_key(v) {
-									let (coefficient, indices) = term_map.get(v).unwrap();
-									let coefficient = *coefficient + 1.into();
-									let mut indices = indices.clone();
-									indices.push(i);
-									term_map.insert(v.to_string(), (coefficient, indices));
-								} else {
-									term_map.insert(v.to_string(), (1.into(), vec![i]));
+								if !coefficient.is_one() {
+									*term_to_modify = prod!(coefficient.clone(), v.clone());
 								}
 							}
 							_ => (),
-						}
-						i += 1;
-					}
-					let mut indices_to_remove: Vec<usize> = Vec::new();
-					for (_, (coefficient, indices)) in term_map.iter() {
-						if indices.len() > 1 {
-							let mut indices = indices.iter();
-							let first = indices.next().unwrap();
-							let term_to_modify = s.terms[*first].as_mut();
-							match term_to_modify {
-								Expression::Product(p) => {
-									p.coefficient = coefficient.clone();
-								}
-								Expression::Exponent(e) => {
-									if !coefficient.is_one() {
-										*term_to_modify = prod!(coefficient.clone(), e.clone());
-									}
-								}
-								Expression::Variable(v) => {
-									if !coefficient.is_one() {
-										*term_to_modify = prod!(coefficient.clone(), v.clone());
-									}
-								}
-								_ => (),
-							};
-							for i in indices {
-								indices_to_remove.push(*i);
-							}
+						};
+						for i in indices {
+							indices_to_remove.push(*i);
 						}
 					}
-					indices_to_remove.sort();
-					let mutated = indices_to_remove.len() > 0;
-					for (offset, i) in indices_to_remove.iter().enumerate() {
-						s.terms.remove(i - offset);
-					}
-					if mutated {
-						self.simplify();
-					}
+				}
+				indices_to_remove.sort();
+				let mutated = indices_to_remove.len() > 0;
+				for (offset, i) in indices_to_remove.iter().enumerate() {
+					s.terms.remove(i - offset);
+				}
+				if mutated {
+					self.simplify();
 				}
 			}
 			Expression::Product(p) => {
-				if p.coefficient.is_zero() {
-					*self = Expression::Numeral(Fraction::from(0));
-				} else {
-					// remove singleton products
-					for f in p.factors.iter_mut() {
-						f.simplify();
-					}
-					if p.factors.len() == 0 {
-						*self = Expression::Numeral(p.coefficient.clone());
-					} else if p.factors.len() == 1 && p.coefficient == 1.into() {
-						*self = p.factors[0].as_mut().clone();
-					}
+				for f in p.factors.iter_mut() {
+					f.simplify();
 				}
 			}
 			Expression::Exponent(e) => {
 				e.base.simplify();
 				e.exponent.simplify();
+				// TODO: remove power 0. refactor
 				// number^number -> number
 				match (e.base.as_ref(), e.exponent.as_ref()) {
 					(Expression::Numeral(b), Expression::Numeral(e)) => {
@@ -413,6 +436,238 @@ impl Expression {
 				e.exponent.remove_nested_sums();
 			}
 			_ => (),
+		}
+	}
+
+	// take out common numeric/variable/exponent factors
+	// does not work for sum factors at the moment
+	// only work if outer-most expression type is a sum
+	// for exponent,s only work for x^n where n is a numeral at the moment
+	// doesn't work for (xy)^n
+	pub fn factorize(&mut self) -> () {
+		if let Expression::Sum(s) = self {
+			if s.terms.len() < 2 {
+				return;
+			}
+			let mut terms = s.terms.iter();
+			let first_term = terms.next().unwrap();
+			match first_term.as_ref() {
+				Expression::Numeral(f) => {
+					let mut factor = f.clone();
+					for t in terms {
+						match t.as_ref() {
+							Expression::Product(p) => {
+								factor = fraction_gcd(&factor, &p.coefficient);
+							}
+							Expression::Numeral(f) => {
+								factor = fraction_gcd(&factor, &f);
+							}
+							_ => (),
+						}
+					}
+					// factorize
+					if factor.is_nonzero() && factor != 1.into() {
+						for t in s.terms.iter_mut() {
+							match t.as_mut() {
+								Expression::Product(p) => {
+									p.coefficient = p.coefficient / factor.clone();
+								}
+								Expression::Numeral(f) => {
+									*f = *f / factor.clone();
+								}
+								_ => (),
+							}
+						}
+						*self = Expression::Product(Product {
+							coefficient: factor,
+							factors: vec![Box::new(Expression::Sum(s.clone()))],
+						});
+					}
+					return;
+				}
+				Expression::Product(p) => {
+					let mut factor = p.coefficient.clone();
+					for t in terms {
+						match t.as_ref() {
+							Expression::Product(p) => {
+								factor = fraction_gcd(&factor, &p.coefficient);
+							}
+							Expression::Numeral(f) => {
+								factor = fraction_gcd(&factor, &f);
+							}
+							_ => (),
+						}
+					}
+					// factorize
+					if factor.is_nonzero() && factor != 1.into() {
+						for t in s.terms.iter_mut() {
+							match t.as_mut() {
+								Expression::Product(p) => {
+									p.coefficient = p.coefficient / factor.clone();
+								}
+								Expression::Numeral(f) => {
+									*f = *f / factor.clone();
+								}
+								_ => (),
+							}
+						}
+						*self = Expression::Product(Product {
+							coefficient: factor,
+							factors: vec![Box::new(Expression::Sum(s.clone()))],
+						});
+					}
+				}
+				Expression::Variable(v) => {
+					for t in terms {
+						match t.as_ref() {
+							Expression::Variable(_) => {
+								// simplification should have prevented two of the same variables in a sum
+								return;
+							}
+							Expression::Exponent(e) => {
+								// only work for x^n where n is a numeral at the moment
+								// doesn't work for (xy)^n
+								if let (Expression::Variable(v2), Expression::Numeral(n)) =
+									(e.base.as_ref(), e.exponent.as_ref())
+								{
+									if v != v2 || n <= &1.into() {
+										return;
+									}
+								}
+							}
+							_ => return,
+						}
+					}
+					let mut terms: Vec<Box<Expression>> =
+						vec![Box::new(Expression::Numeral(Fraction::from(1)))];
+					let mut terms_iter = s.terms.iter();
+					terms_iter.next(); // can skip first term
+					for t in terms_iter {
+						match t.as_ref() {
+							Expression::Exponent(e) => {
+								if let Expression::Numeral(f) = e.exponent.as_ref() {
+									let mut exp = Expression::Exponent(Exponent {
+										base: Box::new(Expression::Variable(v.clone())),
+										exponent: Box::new(Expression::Numeral(*f - 1.into())),
+									});
+									exp.simplify();
+									terms.push(Box::new(exp))
+								} else {
+									panic!(
+										"Unexpected factorization of variable encountered: exponent is not a numeral"
+									)
+								}
+							}
+							_ => {
+								panic!("Unexpected factorization of variable encountered")
+							}
+						}
+					}
+					let mut p = Product {
+						coefficient: Fraction::from(1),
+						factors: vec![
+							Box::new(Expression::Variable(v.clone())),
+							Box::new(Expression::Sum(Sum { terms })),
+						],
+					};
+					p.simplify();
+					*self = Expression::Product(p);
+				}
+				Expression::Exponent(e) => {
+					if let (Expression::Variable(v), Expression::Numeral(n)) =
+						(e.base.as_ref(), e.exponent.as_ref())
+					{
+						if n.is_negative() {
+							return;
+						}
+						let mut power = n.clone();
+						for t in terms {
+							match t.as_ref() {
+								Expression::Exponent(e2) => {
+									if let (Expression::Variable(v2), Expression::Numeral(n2)) =
+										(e2.base.as_ref(), e2.exponent.as_ref())
+									{
+										if v != v2 || n2.is_negative() {
+											return;
+										}
+										power = cmp::min(power, n2.clone());
+									}
+								}
+								Expression::Variable(v2) => {
+									if v != v2 {
+										return;
+									}
+									if power < 1.into() {
+										return;
+									}
+									power = cmp::min(power, 1.into());
+								}
+								_ => return,
+							}
+						}
+						let mut terms: Vec<Box<Expression>> = Vec::new();
+						for t in s.terms.iter() {
+							match t.as_ref() {
+								Expression::Exponent(e) => {
+									if let Expression::Numeral(f) = e.exponent.as_ref() {
+										let new_power = *f - power.clone();
+										if new_power.is_zero() {
+											terms.push(Box::new(Expression::Numeral(Fraction::from(1))));
+										} else if new_power.is_one() {
+											terms.push(Box::new(Expression::Variable(v.clone())));
+										} else {
+											let mut exp = Expression::Exponent(Exponent {
+												base: Box::new(Expression::Variable(v.clone())),
+												exponent: Box::new(Expression::Numeral(new_power)),
+											});
+											exp.simplify();
+											terms.push(Box::new(exp))
+										}
+									} else {
+										panic!(
+											"Unexpected factorization of variable encountered: exponent is not a numeral"
+										)
+									}
+								}
+								Expression::Variable(v2) => {
+									assert!(v == v2);
+									if power > 1.into() {
+										panic!("Unexpected factorization of variable encountered: power should be at least 1 when we get here")
+									}
+									let new_power: Fraction = Fraction::from(1) - power;
+									if new_power.is_zero() {
+										terms.push(Box::new(Expression::Numeral(Fraction::from(1))));
+									} else if new_power.is_one() {
+										terms.push(Box::new(Expression::Variable(v.clone())));
+									} else {
+										let mut exp = Expression::Exponent(Exponent {
+											base: Box::new(Expression::Variable(v.clone())),
+											exponent: Box::new(Expression::Numeral(new_power)),
+										});
+										exp.simplify();
+										terms.push(Box::new(exp))
+									}
+								}
+								_ => {
+									panic!("Unexpected factorization of variable encountered")
+								}
+							}
+						}
+						let mut factor = Expression::Exponent(Exponent {
+							base: Box::new(Expression::Variable(v.clone())),
+							exponent: Box::new(Expression::Numeral(power.clone())),
+						});
+						factor.simplify();
+						let mut p = Product {
+							coefficient: Fraction::from(1),
+							factors: vec![Box::new(factor), Box::new(Expression::Sum(Sum { terms }))],
+						};
+						p.simplify();
+						*self = Expression::Product(p);
+					}
+				}
+				_ => (),
+			}
 		}
 	}
 }

@@ -147,16 +147,10 @@ impl Product {
 		self.factors = factors;
 	}
 
-	pub fn simplify(&mut self) -> () {
-		self.collect_coefficients();
-		// loop 1: simplify factors
-		for factor in self.factors.iter_mut() {
-			factor.simplify();
-		}
+	pub fn remove_nested_products(&mut self) -> () {
 		let mut factors: Vec<Box<Expression>> = Vec::new();
 		let mut coefficient = self.coefficient.clone();
 		let mut product_found = false;
-		// loop 2: remove nested products
 		for factor in self.factors.iter_mut() {
 			match factor.as_mut() {
 				Expression::Product(p) => {
@@ -182,6 +176,14 @@ impl Product {
 			prod.simplify();
 			*self = prod;
 		}
+	}
+
+	pub fn simplify(&mut self) -> () {
+		self.collect_coefficients();
+		for factor in self.factors.iter_mut() {
+			factor.simplify();
+		}
+		self.remove_nested_products()
 	}
 
 	pub fn abs(&self) -> Product {

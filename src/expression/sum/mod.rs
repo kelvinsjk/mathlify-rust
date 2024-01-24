@@ -125,18 +125,13 @@ impl Sum {
 		self.terms = terms;
 	}
 
-	pub fn simplify(&mut self) -> () {
-		self.remove_zeros();
-		self.remove_nested_sums();
-		// combine all numbers
+	pub fn combine_numbers(&mut self) -> () {
+		// (index, value)
 		let mut first_number: Option<(usize, Fraction)> = Option::None;
-		// (index, val)
 		let mut other_indices: Vec<usize> = Vec::new();
 		let mut i = 0;
-		for term in self.terms.iter_mut() {
-			let t = term.as_mut();
-			t.simplify();
-			match t {
+		for t in self.terms.iter_mut() {
+			match t.as_mut() {
 				Expression::Numeral(f) => {
 					(first_number, other_indices) = handle_number(first_number, other_indices, i, f);
 				}
@@ -147,22 +142,25 @@ impl Sum {
 							handle_number(first_number, other_indices, i, &p.coefficient);
 					}
 				}
-				Expression::Sum(s) => s.simplify(),
-				Expression::Quotient(_q) => (),
-				Expression::Exponent(_e) => (),
-				Expression::Variable(_v) => (),
+				_ => (),
 			}
 			i += 1;
 		}
-		match first_number {
-			Some((i, f)) => {
-				self.terms[i] = Box::new(Expression::Numeral(f));
-			}
-			_ => (),
+		if let Some((index, val)) = first_number {
+			self.terms[index] = Box::new(Expression::Numeral(val));
 		}
 		for (offset, i) in other_indices.iter().enumerate() {
 			self.terms.remove(i - offset);
 		}
+	}
+
+	pub fn simplify(&mut self) -> () {
+		self.remove_zeros();
+		self.remove_nested_sums();
+		for term in self.terms.iter_mut() {
+			term.simplify();
+		}
+		self.combine_numbers();
 	}
 }
 

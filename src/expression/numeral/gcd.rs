@@ -19,3 +19,8 @@ pub fn gcd(mut n: i32, mut m: i32) -> i32 {
 	}
 	n
 }
+
+pub fn lcm(n: i32, m: i32) -> i32 {
+	assert!(!(n == 0 && m == 0));
+	n.abs() * m.abs() / gcd(n, m)
+}
