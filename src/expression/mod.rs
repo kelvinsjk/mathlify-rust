@@ -268,11 +268,12 @@ impl Expression {
 				for f in p.factors.iter_mut() {
 					f.simplify();
 				}
+				p.simplify();
 			}
 			Expression::Exponent(e) => {
 				e.base.simplify();
 				e.exponent.simplify();
-				// TODO: remove power 0. refactor
+				// TODO: refactor
 				// number^number -> number
 				match (e.base.as_ref(), e.exponent.as_ref()) {
 					(Expression::Numeral(b), Expression::Numeral(e)) => {
@@ -287,6 +288,9 @@ impl Expression {
 								// remove power 1
 								*self = e.base.as_mut().clone();
 								self.simplify();
+							} else if n == &(0 as i32).into() {
+								// remove power 0
+								*self = Expression::Numeral(Fraction::from(1));
 							} else if let Expression::Product(p) = e.base.as_ref() {
 								// exponent of products become product of exponents
 								let mut factors: Vec<Box<Expression>> = Vec::new();
@@ -478,46 +482,199 @@ impl Expression {
 								_ => (),
 							}
 						}
+						let mut sum = Expression::Sum(s.clone());
+						sum.expand_and_simplify();
 						*self = Expression::Product(Product {
 							coefficient: factor,
-							factors: vec![Box::new(Expression::Sum(s.clone()))],
+							factors: vec![Box::new(sum)],
 						});
 					}
 					return;
 				}
 				Expression::Product(p) => {
+					let mut variable_exponent_map: HashMap<String, Fraction> = HashMap::new();
 					let mut factor = p.coefficient.clone();
-					for t in terms {
-						match t.as_ref() {
-							Expression::Product(p) => {
-								factor = fraction_gcd(&factor, &p.coefficient);
+					let mut variable_vec: Vec<String> = Vec::new();
+					// collate variables and exponents
+					for f in &p.factors {
+						match f.as_ref() {
+							// assumes variable and exponents are mutually exclusive
+							Expression::Variable(v) => {
+								variable_exponent_map.insert(v.clone(), 1.into());
+								variable_vec.push(v.clone());
 							}
-							Expression::Numeral(f) => {
-								factor = fraction_gcd(&factor, &f);
+							Expression::Exponent(e) => {
+								if let (Expression::Variable(v), Expression::Numeral(n)) =
+									(e.base.as_ref(), e.exponent.as_ref())
+								{
+									variable_exponent_map.insert(v.clone(), n.clone());
+									variable_vec.push(v.clone());
+								}
 							}
 							_ => (),
 						}
 					}
+					// get common factors
+					for t in terms {
+						match t.as_ref() {
+							Expression::Product(p) => {
+								factor = fraction_gcd(&factor, &p.coefficient);
+								for v in variable_exponent_map.clone().keys() {
+									let mut v_found = false;
+									for f in &p.factors {
+										match f.as_ref() {
+											Expression::Variable(v2) => {
+												if v == v2 {
+													v_found = true;
+													let power = variable_exponent_map.get_mut(v).unwrap();
+													if power > &mut 1.into() {
+														*power = 1.into();
+													}
+													break;
+												}
+											}
+											Expression::Exponent(e) => {
+												if let (Expression::Variable(v2), Expression::Numeral(n)) =
+													(e.base.as_ref(), e.exponent.as_ref())
+												{
+													if v == v2 {
+														v_found = true;
+														let power = variable_exponent_map.get_mut(v).unwrap();
+														if power > &mut n.clone() {
+															*power = n.clone();
+														}
+														break;
+													}
+												}
+											}
+											_ => (),
+										}
+									}
+									if !v_found {
+										variable_exponent_map.remove(v);
+									}
+								}
+							}
+							Expression::Exponent(e) => {
+								factor = Fraction::from(1);
+								if let (Expression::Variable(v), Expression::Numeral(n)) =
+									(e.base.as_ref(), e.exponent.as_ref())
+								{
+									let power = if let Some(n2) = variable_exponent_map.get_mut(v) {
+										Some(cmp::min(*n2, n.clone()))
+									} else {
+										None
+									};
+									variable_exponent_map.clear();
+									if let Some(n) = power {
+										variable_exponent_map.insert(v.clone(), n);
+									}
+								} else {
+									variable_exponent_map.clear();
+								}
+							}
+							Expression::Variable(v) => {
+								let power = if let Some(n) = variable_exponent_map.get_mut(v) {
+									Some(cmp::min(*n, 1.into()))
+								} else {
+									None
+								};
+								variable_exponent_map.clear();
+								if let Some(n) = power {
+									variable_exponent_map.insert(v.clone(), n);
+								}
+							}
+							Expression::Numeral(f) => {
+								factor = fraction_gcd(&factor, &f);
+								variable_exponent_map.clear();
+							}
+							_ => {
+								factor = Fraction::from(1);
+								variable_exponent_map.clear();
+							}
+						}
+					}
 					// factorize
-					if factor.is_nonzero() && factor != 1.into() {
+					if factor != 1.into() || variable_exponent_map.keys().len() > 0 {
 						for t in s.terms.iter_mut() {
 							match t.as_mut() {
 								Expression::Product(p) => {
 									p.coefficient = p.coefficient / factor.clone();
+									for var in variable_vec.clone() {
+										if let Some(power) = variable_exponent_map.get_mut(&var) {
+											p.factors = p.variable_decrement(&var, &power);
+										}
+									}
+									t.simplify();
+								}
+								Expression::Exponent(e) => {
+									if let (Expression::Variable(v), Expression::Numeral(n)) =
+										(e.base.as_ref(), e.exponent.as_ref())
+									{
+										if let Some(power) = variable_exponent_map.get_mut(v) {
+											let new_power = *power - n.clone();
+											if new_power.is_zero() {
+												*t = Box::new(Expression::Numeral(Fraction::from(1)));
+											} else if new_power.is_one() {
+												*t = Box::new(Expression::Variable(v.clone()));
+											} else {
+												*power = new_power;
+											}
+										}
+									}
+								}
+								Expression::Variable(v) => {
+									let pow: Fraction;
+									if let Some(power) = variable_exponent_map.get_mut(v) {
+										pow = *power - 1.into();
+									} else {
+										panic!("Unexpected factorization of variable encountered in product-variable")
+									}
+									if pow.is_zero() {
+										*t = Box::new(Expression::Numeral(Fraction::from(1)));
+									} else {
+										let mut exp = Expression::Exponent(Exponent {
+											base: Box::new(Expression::Variable(v.clone())),
+											exponent: Box::new(Expression::Numeral(pow)),
+										});
+										exp.simplify();
+										*t = Box::new(exp);
+									}
 								}
 								Expression::Numeral(f) => {
 									*f = *f / factor.clone();
 								}
-								_ => (),
+								_ => {
+									panic!("Unexpected factorization of variable encountered in product")
+								}
 							}
 						}
+						// collect factorized variables
+						let mut factors: Vec<Box<Expression>> = Vec::new();
+						for var in variable_vec {
+							if let Some(pow) = variable_exponent_map.get(&var) {
+								if pow.is_one() {
+									factors.push(Box::new(Expression::Variable(var)));
+								} else {
+									let exp = Expression::Exponent(Exponent {
+										base: Box::new(Expression::Variable(var)),
+										exponent: Box::new(Expression::Numeral(pow.clone())),
+									});
+									factors.push(Box::new(exp));
+								}
+							}
+						}
+						let mut sum = Expression::Sum(s.clone());
+						sum.expand_and_simplify();
+						factors.push(Box::new(sum));
 						*self = Expression::Product(Product {
 							coefficient: factor,
-							factors: vec![Box::new(Expression::Sum(s.clone()))],
+							factors,
 						});
 					}
 				}
 				Expression::Variable(v) => {
+					// check if variable in remaining terms
 					for t in terms {
 						match t.as_ref() {
 							Expression::Variable(_) => {
@@ -535,9 +692,19 @@ impl Expression {
 									}
 								}
 							}
+							Expression::Product(p) => {
+								if !p.has_variable(v) {
+									return;
+								}
+								let power = p.variable_pow(v).unwrap();
+								if power < 1.into() {
+									return;
+								}
+							}
 							_ => return,
 						}
 					}
+					// factorize
 					let mut terms: Vec<Box<Expression>> =
 						vec![Box::new(Expression::Numeral(Fraction::from(1)))];
 					let mut terms_iter = s.terms.iter();
@@ -558,17 +725,25 @@ impl Expression {
 									)
 								}
 							}
+							Expression::Product(p) => {
+								let factors = p.variable_decrement(&v, &1.into());
+								let mut exp = Expression::Product(Product {
+									coefficient: p.coefficient.clone(),
+									factors,
+								});
+								exp.simplify();
+								terms.push(Box::new(exp))
+							}
 							_ => {
 								panic!("Unexpected factorization of variable encountered")
 							}
 						}
 					}
+					let mut sum = Expression::Sum(Sum { terms });
+					sum.expand_and_simplify();
 					let mut p = Product {
 						coefficient: Fraction::from(1),
-						factors: vec![
-							Box::new(Expression::Variable(v.clone())),
-							Box::new(Expression::Sum(Sum { terms })),
-						],
+						factors: vec![Box::new(Expression::Variable(v.clone())), Box::new(sum)],
 					};
 					p.simplify();
 					*self = Expression::Product(p);
@@ -601,6 +776,16 @@ impl Expression {
 										return;
 									}
 									power = cmp::min(power, 1.into());
+								}
+								Expression::Product(p) => {
+									if !p.has_variable(v) {
+										return;
+									}
+									let p_power = p.variable_pow(v).unwrap();
+									if p_power.is_negative() {
+										return;
+									}
+									power = cmp::min(power, p_power);
 								}
 								_ => return,
 							}
@@ -648,6 +833,15 @@ impl Expression {
 										terms.push(Box::new(exp))
 									}
 								}
+								Expression::Product(p) => {
+									let factors = p.variable_decrement(&v, &power);
+									let mut exp = Expression::Product(Product {
+										coefficient: p.coefficient.clone(),
+										factors,
+									});
+									exp.simplify();
+									terms.push(Box::new(exp))
+								}
 								_ => {
 									panic!("Unexpected factorization of variable encountered")
 								}
@@ -658,9 +852,11 @@ impl Expression {
 							exponent: Box::new(Expression::Numeral(power.clone())),
 						});
 						factor.simplify();
+						let mut sum = Expression::Sum(Sum { terms });
+						sum.expand_and_simplify();
 						let mut p = Product {
 							coefficient: Fraction::from(1),
-							factors: vec![Box::new(factor), Box::new(Expression::Sum(Sum { terms }))],
+							factors: vec![Box::new(factor), Box::new(sum)],
 						};
 						p.simplify();
 						*self = Expression::Product(p);

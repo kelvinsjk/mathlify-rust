@@ -2,6 +2,8 @@ use crate::expression::numeral::Fraction;
 use crate::expression::{Expression, SubIn};
 use std::fmt;
 
+use super::Exponent;
+
 #[cfg(test)]
 mod tests {
 	use crate::expression::*;
@@ -237,6 +239,85 @@ impl Product {
 			s.push_str(var);
 		}
 		s
+	}
+
+	pub fn has_variable(&self, x: &str) -> bool {
+		for factor in self.factors.iter() {
+			match factor.as_ref() {
+				Expression::Variable(v) => {
+					if v == x {
+						return true;
+					}
+				}
+				Expression::Exponent(e) => {
+					if e.has_variable(x) {
+						return true;
+					}
+				}
+				_ => {}
+			}
+		}
+		false
+	}
+
+	pub fn variable_pow(&self, x: &str) -> Option<Fraction> {
+		for factor in self.factors.iter() {
+			match factor.as_ref() {
+				Expression::Exponent(e) => {
+					if e.base.to_string() == x {
+						match e.exponent.as_ref() {
+							Expression::Numeral(n) => {
+								return Some(n.clone());
+							}
+							_ => {}
+						}
+					}
+				}
+				Expression::Variable(v) => {
+					if v == x {
+						return Some(1.into());
+					}
+				}
+				_ => {}
+			}
+		}
+		None
+	}
+
+	// returns without coefficient
+	pub fn variable_decrement(&self, var: &str, pow: &Fraction) -> Vec<Box<Expression>> {
+		let mut factors: Vec<Box<Expression>> = Vec::new();
+		for factor in self.factors.iter() {
+			match factor.as_ref() {
+				Expression::Variable(v) => {
+					if v != var {
+						factors.push(factor.clone());
+					}
+				}
+				Expression::Exponent(e) => {
+					if let (Expression::Variable(v), Expression::Numeral(n)) =
+						(e.base.as_ref(), e.exponent.as_ref())
+					{
+						if v == var {
+							let mut exp = Expression::Exponent(Exponent {
+								base: e.base.clone(),
+								exponent: Box::new(Expression::Numeral(n.clone() - pow.clone())),
+							});
+							exp.simplify();
+							factors.push(Box::new(exp));
+						} else {
+							factors.push(factor.clone());
+						}
+					} else {
+						factors.push(factor.clone());
+					}
+				}
+				_ => {
+					factors.push(factor.clone());
+				}
+			}
+		}
+		factors
 	}
 }
 

@@ -54,6 +54,16 @@ pub struct Exponent {
 	pub exponent: Box<Expression>,
 }
 
+impl Exponent {
+	pub fn has_variable(&self, x: &str) -> bool {
+		match self.base.as_ref() {
+			Expression::Variable(v) => v == x,
+			Expression::Product(p) => p.has_variable(x),
+			_ => false,
+		}
+	}
+}
+
 impl fmt::Display for Exponent {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 		let brackets = match self.base.as_ref() {
