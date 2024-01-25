@@ -5,7 +5,7 @@ pub mod quotient;
 pub mod sum;
 pub mod variable;
 pub use exponent::Exponent;
-pub use numeral::fraction_gcd::fraction_gcd;
+pub use numeral::fraction_gcd::{fraction_gcd, fraction_lcm};
 pub use numeral::Fraction;
 pub use product::Product;
 pub use quotient::Quotient;
@@ -340,12 +340,15 @@ impl Expression {
 			}
 			// variable, numeral
 			Expression::Quotient(q) => {
+				q.simplify();
+				// numeral/numeral -> fraction
 				if let (Expression::Numeral(n), Expression::Numeral(d)) =
 					(q.numerator.as_mut(), q.denominator.as_mut())
 				{
 					*self = Expression::Numeral(*n / *d);
 					self.simplify();
 				} else if let Expression::Numeral(n) = q.denominator.as_ref() {
+					// denominator 1 -> only take numerator
 					if n.is_one() {
 						*self = q.numerator.as_mut().clone();
 						self.simplify();
@@ -446,7 +449,7 @@ impl Expression {
 	// take out common numeric/variable/exponent factors
 	// does not work for sum factors at the moment
 	// only work if outer-most expression type is a sum
-	// for exponent,s only work for x^n where n is a numeral at the moment
+	// for exponents only work for x^n where n is a numeral at the moment
 	// doesn't work for (xy)^n
 	pub fn factorize(&mut self) -> () {
 		if let Expression::Sum(s) = self {
@@ -864,6 +867,120 @@ impl Expression {
 				}
 				_ => (),
 			}
+		}
+	}
+
+	// combine sums of quotients
+	// only work for numbers at the moment
+	pub fn combine_fraction(&mut self) -> () {
+		if let Expression::Sum(s) = self {
+			let mut denominator = Fraction::from(1);
+			// get lcm
+			for t in &s.terms {
+				match t.as_ref() {
+					Expression::Quotient(q) => {
+						if let Expression::Numeral(n) = q.denominator.as_ref() {
+							println!("denominator-pre: {}, {}", denominator, n);
+							denominator = fraction_lcm(&denominator, &n);
+							println!("denominator-post: {}", denominator);
+						} else {
+							panic!("Unexpected denominator in quotient")
+						}
+					}
+					Expression::Numeral(n) => {
+						denominator = fraction_lcm(&denominator, &Fraction::from(n.denominator as i32));
+					}
+					// only handle - n/d at the moment.
+					Expression::Product(p) => {
+						if p.coefficient.is_negative_one() && p.factors.len() == 1 {
+							if let Expression::Quotient(q) = p.factors[0].as_ref() {
+								if let Expression::Numeral(n) = q.denominator.as_ref() {
+									denominator = fraction_lcm(&denominator, &n);
+								} else {
+									panic!("Unexpected denominator in quotient")
+								}
+							}
+						}
+					}
+					_ => (),
+				}
+			}
+			// combine into fraction
+			let mut terms: Vec<Box<Expression>> = Vec::new();
+			if denominator.is_one() {
+				return;
+			}
+			for t in s.terms.iter_mut() {
+				match t.as_mut() {
+					Expression::Product(p) => {
+						if p.coefficient.is_negative_one() && p.factors.len() == 1 {
+							if let Expression::Quotient(q) = p.factors[0].as_ref() {
+								if let Expression::Numeral(n) = q.denominator.as_ref() {
+									let multiple = denominator.clone() / n.clone();
+									let mut exp = Expression::Product(Product {
+										coefficient: multiple.negative(),
+										factors: vec![q.numerator.clone()],
+									});
+									exp.expand_and_simplify();
+									terms.push(Box::new(exp));
+								} else {
+									panic!("Unexpected denominator in quotient")
+								}
+							} else {
+								terms.push(Box::new(Expression::Product(Product {
+									coefficient: p.coefficient * denominator.clone(),
+									factors: p.factors.clone(),
+								})));
+							}
+						} else {
+							let mut exp = Expression::Product(Product {
+								coefficient: p.coefficient * denominator.clone(),
+								factors: p.factors.clone(),
+							});
+							exp.expand_and_simplify();
+							terms.push(Box::new(exp));
+						}
+					}
+					Expression::Quotient(q) => {
+						if let Expression::Numeral(n) = q.denominator.as_ref() {
+							let multiple = denominator.clone() / n.clone();
+							let mut exp = Expression::Product(Product {
+								coefficient: multiple,
+								factors: vec![q.numerator.clone()],
+							});
+							exp.expand_and_simplify();
+							terms.push(Box::new(exp));
+						} else {
+							panic!("Unexpected denominator in quotient")
+						}
+					}
+					Expression::Exponent(_) => {
+						terms.push(Box::new(Expression::Product(Product {
+							coefficient: denominator.clone(),
+							factors: vec![t.clone()],
+						})));
+					}
+					Expression::Variable(_) => {
+						terms.push(Box::new(Expression::Product(Product {
+							coefficient: denominator.clone(),
+							factors: vec![t.clone()],
+						})));
+					}
+					Expression::Numeral(n) => {
+						terms.push(Box::new(Expression::Numeral(*n * denominator.clone())));
+					}
+					_ => {
+						panic!("Unexpected sum in sum")
+					}
+				}
+			}
+			let sum = Expression::Sum(Sum { terms });
+			let mut q = Expression::Quotient(Quotient {
+				numerator: Box::new(sum),
+				denominator: Box::new(Expression::Numeral(denominator)),
+			});
+			q.simplify();
+			*self = q;
 		}
 	}
 }

@@ -127,5 +127,5 @@ fn factorize_variables() {
 	);
 	exp.factorize();
 	assert_eq!(exp.to_string(), "a\\left( - 11 - 13x \\right)");
-	// TODO: factorize out negative
+	// TODO: nested factorization
 }

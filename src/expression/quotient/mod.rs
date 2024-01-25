@@ -1,6 +1,8 @@
 use crate::expression::{Expression, SubIn};
 use std::fmt;
 
+use super::fraction_gcd;
+
 #[cfg(test)]
 mod tests {
 	use crate::expression::*;
@@ -72,5 +74,20 @@ impl Quotient {
 			}
 		}
 		self.clone()
+	}
+
+	// prod (3x)/n -> take gcd
+	pub fn simplify(&mut self) -> () {
+		self.numerator.simplify();
+		self.denominator.simplify();
+		if let (Expression::Product(p), Expression::Numeral(n)) =
+			(self.numerator.as_mut(), self.denominator.as_mut())
+		{
+			let gcd = fraction_gcd(&p.coefficient, n);
+			if !gcd.is_one() {
+				p.coefficient = p.coefficient / gcd.clone();
+				*n = *n / gcd;
+			}
+		}
 	}
 }

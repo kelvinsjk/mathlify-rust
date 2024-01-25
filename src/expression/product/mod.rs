@@ -36,6 +36,13 @@ mod tests {
 	}
 
 	#[test]
+	fn nested_products() {
+		let mut p = prod!(prod!(2, "x"), prod!(3, "y"));
+		p.simplify();
+		assert_eq!(p.to_string(), "6xy");
+	}
+
+	#[test]
 	fn sub_in() {
 		// Sec 1a, Page 60, Q6a,b
 		let exp = prod!(3, "x", "y");
@@ -158,9 +165,9 @@ impl Product {
 				Expression::Product(p) => {
 					product_found = true;
 					p.simplify();
+					coefficient = coefficient * p.coefficient;
 					for f in p.factors.iter() {
 						factors.push(f.clone());
-						coefficient = self.coefficient * p.coefficient;
 					}
 				}
 				_ => {
@@ -185,7 +192,7 @@ impl Product {
 		for factor in self.factors.iter_mut() {
 			factor.simplify();
 		}
-		self.remove_nested_products()
+		self.remove_nested_products();
 	}
 
 	pub fn abs(&self) -> Product {
