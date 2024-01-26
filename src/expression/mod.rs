@@ -145,7 +145,9 @@ impl Expression {
 				for t in s.terms.iter_mut() {
 					t.remove_singletons();
 				}
-				if s.terms.len() == 1 {
+				if s.terms.len() == 0 {
+					*self = Expression::Numeral(0.into());
+				} else if s.terms.len() == 1 {
 					*self = s.terms[0].as_mut().clone();
 				}
 			}
@@ -179,106 +181,10 @@ impl Expression {
 		self.remove_singletons();
 		match self {
 			Expression::Sum(s) => {
-				s.simplify();
 				for t in s.terms.iter_mut() {
 					t.simplify();
 				}
-				// combine like terms
-				// TODO: move into sum?
-				let mut i = 0;
-				// variable string: (coefficient, [term index])
-				let mut term_map: HashMap<String, (Fraction, Vec<usize>)> =
-					std::collections::HashMap::new();
-				for t in s.terms.iter() {
-					match t.as_ref() {
-						Expression::Product(p) => {
-							let lexical_string = p.lexical_string();
-							if term_map.contains_key(&lexical_string) {
-								let (coefficient, indices) = term_map.get(&lexical_string).unwrap();
-								let coefficient = *coefficient + p.coefficient.clone();
-								let mut indices = indices.clone();
-								indices.push(i);
-								term_map.insert(lexical_string, (coefficient, indices));
-							} else {
-								term_map.insert(lexical_string, (p.coefficient.clone(), vec![i]));
-							}
-						}
-						Expression::Exponent(e) => {
-							let string = e.to_string();
-							if term_map.contains_key(&string) {
-								let (coefficient, indices) = term_map.get(&string).unwrap();
-								let coefficient = *coefficient + 1.into();
-								let mut indices = indices.clone();
-								indices.push(i);
-								term_map.insert(string, (coefficient, indices));
-							} else {
-								term_map.insert(string, (1.into(), vec![i]));
-							}
-						}
-						Expression::Variable(v) => {
-							if term_map.contains_key(v) {
-								let (coefficient, indices) = term_map.get(v).unwrap();
-								let coefficient = *coefficient + 1.into();
-								let mut indices = indices.clone();
-								indices.push(i);
-								term_map.insert(v.to_string(), (coefficient, indices));
-							} else {
-								term_map.insert(v.to_string(), (1.into(), vec![i]));
-							}
-						}
-						Expression::Sum(s) => {
-							let lexical_string = s.lexical_string();
-							if term_map.contains_key(&lexical_string) {
-								let (coefficient, indices) = term_map.get(&lexical_string).unwrap();
-								let coefficient = *coefficient + 1.into();
-								let mut indices = indices.clone();
-								indices.push(i);
-								term_map.insert(lexical_string, (coefficient, indices));
-							} else {
-								term_map.insert(lexical_string, (1.into(), vec![i]));
-							}
-						}
-						// TODO: handle quotients
-						_ => (),
-					}
-					i += 1;
-				}
-				let mut indices_to_remove: Vec<usize> = Vec::new();
-				// modify affected term
-				for (_, (coefficient, indices)) in term_map.iter() {
-					if indices.len() > 1 {
-						let mut indices = indices.iter();
-						let first = indices.next().unwrap();
-						let term_to_modify = s.terms[*first].as_mut();
-						match term_to_modify {
-							Expression::Product(p) => {
-								p.coefficient = coefficient.clone();
-							}
-							Expression::Exponent(e) => {
-								if !coefficient.is_one() {
-									*term_to_modify = prod!(coefficient.clone(), e.clone());
-								}
-							}
-							Expression::Variable(v) => {
-								if !coefficient.is_one() {
-									*term_to_modify = prod!(coefficient.clone(), v.clone());
-								}
-							}
-							_ => (),
-						};
-						for i in indices {
-							indices_to_remove.push(*i);
-						}
-					}
-				}
-				indices_to_remove.sort();
-				let mutated = indices_to_remove.len() > 0;
-				for (offset, i) in indices_to_remove.iter().enumerate() {
-					s.terms.remove(i - offset);
-				}
-				if mutated {
-					self.simplify();
-				}
+				s.simplify();
 			}
 			Expression::Product(p) => {
 				for f in p.factors.iter_mut() {
@@ -373,6 +279,7 @@ impl Expression {
 			}
 			_ => (),
 		}
+		self.remove_singletons();
 	}
 
 	pub fn expand(&mut self) -> () {

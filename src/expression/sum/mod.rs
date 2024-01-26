@@ -1,5 +1,7 @@
 use crate::expression::numeral::Fraction;
-use crate::expression::{Expression, SubIn};
+use crate::expression::{Expression, Product, SubIn};
+use crate::prod;
+use std::collections::HashMap;
 use std::fmt;
 
 #[cfg(test)]
@@ -154,13 +156,92 @@ impl Sum {
 		}
 	}
 
+	pub fn combine_like_terms(&mut self) -> () {
+		let mut i = 0;
+		// get hashmap of terms
+		// variable string: (coefficient, [term indices])
+		let mut term_map: HashMap<String, (Fraction, Vec<usize>)> = std::collections::HashMap::new();
+		for t in self.terms.iter() {
+			match t.as_ref() {
+				Expression::Product(p) => {
+					let key = p.lexical_string();
+					let val = term_map.get_mut(&key);
+					if let Some((ref mut coeff, ref mut indices)) = val {
+						*coeff = *coeff + p.coefficient.clone();
+						indices.push(i);
+					} else {
+						term_map.insert(key, (p.coefficient.clone(), vec![i]));
+					}
+				}
+				Expression::Numeral(n) => {
+					let key = "numeral";
+					let val = term_map.get_mut(key);
+					if let Some((ref mut coeff, ref mut indices)) = val {
+						*coeff = *coeff + n.clone();
+						indices.push(i);
+					} else {
+						term_map.insert(key.to_string(), (n.clone(), vec![i]));
+					}
+				}
+				_ => {
+					let key = if let Expression::Sum(s) = t.as_ref() {
+						s.lexical_string()
+					} else {
+						t.to_string()
+					};
+					let val = term_map.get_mut(&key);
+					if let Some((ref mut coeff, ref mut indices)) = val {
+						*coeff = *coeff + 1.into();
+						indices.push(i);
+					} else {
+						term_map.insert(key, (1.into(), vec![i]));
+					}
+				}
+			}
+			i += 1;
+		}
+		// modify affected term
+		let mut indices_to_remove: Vec<usize> = Vec::new();
+		for (_, (coefficient, indices)) in term_map.iter() {
+			if indices.len() > 1 {
+				let mut indices = indices.iter();
+				let first = indices.next().unwrap();
+				let term_to_modify = self.terms[*first].as_mut();
+				match term_to_modify {
+					Expression::Product(p) => {
+						p.coefficient = coefficient.clone();
+					}
+					Expression::Numeral(n) => {
+						*n = coefficient.clone();
+					}
+					_ => {
+						if !coefficient.is_one() {
+							*term_to_modify = prod!(coefficient.clone(), term_to_modify.clone());
+						}
+					}
+				};
+				for i in indices {
+					indices_to_remove.push(*i);
+				}
+			}
+		}
+		indices_to_remove.sort();
+		let mutated = indices_to_remove.len() > 0;
+		for (offset, i) in indices_to_remove.iter().enumerate() {
+			self.terms.remove(i - offset);
+		}
+		if mutated {
+			self.simplify();
+		}
+	}
+
 	pub fn simplify(&mut self) -> () {
 		self.remove_zeros();
 		self.remove_nested_sums();
 		for term in self.terms.iter_mut() {
 			term.simplify();
 		}
-		self.combine_numbers();
+		self.combine_like_terms();
 	}
 
 	pub fn lexical_string(&self) -> String {
