@@ -1,3 +1,4 @@
+use crate::expression::function::Fn;
 use crate::expression::numeral::Fraction;
 use crate::expression::{Expression, Product, SubIn};
 use crate::prod;
@@ -251,6 +252,7 @@ impl Sum {
 		let mut quotients: Vec<String> = Vec::new();
 		let mut numerals: Vec<String> = Vec::new();
 		let mut products: Vec<String> = Vec::new();
+		let mut others: Vec<String> = Vec::new();
 		for term in self.terms.iter() {
 			match term.as_ref() {
 				Expression::Sum(s) => {
@@ -271,6 +273,11 @@ impl Sum {
 				Expression::Product(p) => {
 					products.push(p.coefficient.to_string() + &p.lexical_string());
 				}
+				Expression::Fn(f) => match f {
+					Fn::Brackets(b) => {
+						others.push(b.to_string());
+					}
+				},
 			}
 		}
 		sums.sort();

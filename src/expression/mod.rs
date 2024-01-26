@@ -1,10 +1,12 @@
 pub mod exponent;
+pub mod function;
 pub mod numeral;
 pub mod product;
 pub mod quotient;
 pub mod sum;
 pub mod variable;
 pub use exponent::Exponent;
+pub use function::Fn;
 pub use numeral::fraction_gcd::{fraction_gcd, fraction_lcm};
 pub use numeral::Fraction;
 pub use product::product_lcm::{lcm_diff, product_lcm};
@@ -103,18 +105,22 @@ pub enum Expression {
 	Exponent(Exponent),
 	Numeral(Fraction),
 	Variable(String),
+	Fn(Fn),
 	// TODO: unary functions
 }
 
 impl fmt::Display for Expression {
-	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+	fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
 		match self {
-			Expression::Sum(s) => write!(f, "{}", s),
-			Expression::Product(p) => write!(f, "{}", p),
-			Expression::Quotient(q) => write!(f, "{}", q),
-			Expression::Exponent(e) => write!(f, "{}", e),
-			Expression::Variable(v) => write!(f, "{}", v),
-			Expression::Numeral(n) => write!(f, "{}", n),
+			Expression::Sum(s) => write!(formatter, "{}", s),
+			Expression::Product(p) => write!(formatter, "{}", p),
+			Expression::Quotient(q) => write!(formatter, "{}", q),
+			Expression::Exponent(e) => write!(formatter, "{}", e),
+			Expression::Variable(v) => write!(formatter, "{}", v),
+			Expression::Numeral(n) => write!(formatter, "{}", n),
+			Expression::Fn(f) => match f {
+				Fn::Brackets(b) => write!(formatter, "{}", b),
+			},
 		}
 	}
 }
@@ -132,6 +138,9 @@ impl SubIn for Expression {
 			Expression::Exponent(e) => e.sub_in(var, val),
 			Expression::Variable(v) => v.sub_in(var, val),
 			Expression::Numeral(n) => n.sub_in(var, val),
+			Expression::Fn(f) => match f {
+				Fn::Brackets(b) => b.sub_in(var, val),
+			},
 		};
 		r.simplify();
 		r
@@ -178,6 +187,7 @@ impl Expression {
 	}
 
 	pub fn simplify(&mut self) -> () {
+		self.remove_brackets();
 		self.remove_singletons();
 		match self {
 			Expression::Sum(s) => {
@@ -936,6 +946,35 @@ impl Expression {
 			});
 			q.simplify();
 			*self = q;
+		}
+	}
+
+	pub fn remove_brackets(&mut self) -> () {
+		match self {
+			Expression::Fn(f) => match f {
+				Fn::Brackets(b) => {
+					*self = b.expression.as_mut().clone();
+				}
+			},
+			Expression::Sum(s) => {
+				for t in s.terms.iter_mut() {
+					t.remove_brackets();
+				}
+			}
+			Expression::Product(p) => {
+				for f in p.factors.iter_mut() {
+					f.remove_brackets();
+				}
+			}
+			Expression::Exponent(e) => {
+				e.base.remove_brackets();
+				e.exponent.remove_brackets();
+			}
+			Expression::Quotient(q) => {
+				q.numerator.remove_brackets();
+				q.denominator.remove_brackets();
+			}
+			_ => (),
 		}
 	}
 }
