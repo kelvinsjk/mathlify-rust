@@ -162,6 +162,51 @@ impl Sum {
 		}
 		self.combine_numbers();
 	}
+
+	pub fn lexical_string(&self) -> String {
+		let mut sums: Vec<String> = Vec::new();
+		let mut exps: Vec<String> = Vec::new();
+		let mut vars: Vec<String> = Vec::new();
+		let mut quotients: Vec<String> = Vec::new();
+		let mut numerals: Vec<String> = Vec::new();
+		let mut products: Vec<String> = Vec::new();
+		for term in self.terms.iter() {
+			match term.as_ref() {
+				Expression::Sum(s) => {
+					sums.push(s.to_string());
+				}
+				Expression::Exponent(e) => {
+					exps.push(e.to_string());
+				}
+				Expression::Quotient(q) => {
+					quotients.push(q.to_string());
+				}
+				Expression::Variable(v) => {
+					vars.push(v.to_string());
+				}
+				Expression::Numeral(n) => {
+					numerals.push(n.to_string());
+				}
+				Expression::Product(p) => {
+					products.push(p.coefficient.to_string() + &p.lexical_string());
+				}
+			}
+		}
+		sums.sort();
+		exps.sort();
+		quotients.sort();
+		vars.sort();
+		numerals.sort();
+		products.sort();
+		let mut terms: Vec<String> = Vec::new();
+		terms.extend(sums);
+		terms.extend(exps);
+		terms.extend(quotients);
+		terms.extend(vars);
+		terms.extend(numerals);
+		terms.extend(products);
+		terms.join("+")
+	}
 }
 
 fn handle_number(

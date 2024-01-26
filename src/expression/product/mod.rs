@@ -1,5 +1,6 @@
 use crate::expression::numeral::Fraction;
 use crate::expression::{Expression, SubIn};
+use std::collections::HashMap;
 use std::fmt;
 
 use super::Exponent;
@@ -96,7 +97,7 @@ mod tests {
 				Box::new(exp!("y", 2)),
 			],
 		};
-		assert_eq!(p.lexical_string(), "2a + 3by^2xz");
+		assert_eq!(p.lexical_string(), "2a+3by^2xz");
 	}
 }
 
@@ -141,16 +142,64 @@ impl fmt::Display for Product {
 }
 
 impl Product {
+	// combine numerals
+	// combine variables x, and exponents x^n where n is a number and x is a variable
 	pub fn collect_coefficients(&mut self) -> () {
 		let mut factors: Vec<Box<Expression>> = Vec::new();
+		let mut i = 0;
+		// variable string: (coefficient, term index)
+		let mut term_map: HashMap<String, (Fraction, usize)> = std::collections::HashMap::new();
 		for factor in self.factors.iter_mut() {
 			match factor.as_mut() {
 				Expression::Numeral(n) => {
 					self.coefficient = self.coefficient * *n;
 				}
+				Expression::Variable(v) => {
+					if term_map.contains_key(v) {
+						let (power, index) = term_map.get(v).unwrap();
+						term_map.insert(v.clone(), (*power + 1.into(), *index));
+					} else {
+						term_map.insert(v.clone(), (1.into(), i));
+						factors.push(factor.clone());
+						i += 1;
+					}
+				}
+				Expression::Exponent(e) => {
+					if let (Expression::Variable(v), Expression::Numeral(n)) =
+						(e.base.as_ref(), e.exponent.as_ref())
+					{
+						if term_map.contains_key(v) {
+							let (power, index) = term_map.get(v).unwrap();
+							term_map.insert(v.clone(), (*power + *n, *index));
+						} else {
+							term_map.insert(v.clone(), (n.clone(), i));
+							factors.push(factor.clone());
+							i += 1;
+						}
+					} else {
+						factors.push(factor.clone());
+						i += 1;
+					}
+				}
 				_ => {
 					factors.push(factor.clone());
+					i += 1;
 				}
+			}
+		}
+		// mutate final factor
+		let mut offset = 0;
+		for (var, (power, index)) in term_map.iter() {
+			if power.is_zero() {
+				factors.remove(*index - offset);
+				offset += 1;
+			} else if power.is_one() {
+				factors[*index - offset] = Box::new(Expression::Variable(var.clone()));
+			} else {
+				factors[*index - offset] = Box::new(Expression::Exponent(Exponent {
+					base: Box::new(Expression::Variable(var.clone())),
+					exponent: Box::new(Expression::Numeral(power.clone())),
+				}));
 			}
 		}
 		self.factors = factors;
@@ -214,38 +263,50 @@ impl Product {
 	// sums (with to_string(), sorted by default order)
 	// exps (with to_string(), sorted by default order)
 	// variables (sorted by default order)
+	// known issue: (x+y)z and and x+yz both return x+yz
 	pub fn lexical_string(&self) -> String {
 		let mut sums: Vec<String> = Vec::new();
 		let mut exps: Vec<String> = Vec::new();
 		let mut vars: Vec<String> = Vec::new();
+		let mut quotients: Vec<String> = Vec::new();
+		let mut numerals: Vec<String> = Vec::new();
+		let mut products: Vec<String> = Vec::new();
 		for factor in self.factors.iter() {
 			match factor.as_ref() {
 				Expression::Sum(s) => {
-					sums.push(s.to_string());
+					sums.push(s.lexical_string());
 				}
 				Expression::Exponent(e) => {
 					exps.push(e.to_string());
 				}
+				Expression::Quotient(q) => {
+					quotients.push(q.to_string());
+				}
 				Expression::Variable(v) => {
 					vars.push(v.to_string());
 				}
-				_ => {}
+				Expression::Numeral(n) => {
+					numerals.push(n.to_string());
+				}
+				Expression::Product(p) => {
+					products.push(p.coefficient.to_string() + &p.lexical_string());
+				}
 			}
 		}
 		sums.sort();
 		exps.sort();
+		quotients.sort();
 		vars.sort();
-		let mut s = String::new();
-		for sum in sums.iter() {
-			s.push_str(sum);
-		}
-		for exp in exps.iter() {
-			s.push_str(exp);
-		}
-		for var in vars.iter() {
-			s.push_str(var);
-		}
-		s
+		numerals.sort();
+		products.sort();
+		let mut terms: Vec<String> = Vec::new();
+		terms.extend(sums);
+		terms.extend(exps);
+		terms.extend(quotients);
+		terms.extend(vars);
+		terms.extend(numerals);
+		terms.extend(products);
+		terms.join("")
 	}
 
 	pub fn has_variable(&self, x: &str) -> bool {

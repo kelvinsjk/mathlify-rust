@@ -128,4 +128,12 @@ fn factorize_variables() {
 	exp.factorize();
 	assert_eq!(exp.to_string(), "a\\left( - 11 - 13x \\right)");
 	// TODO: nested factorization
+
+	// Sec 2a worksheet 3D, pg 41, q1d,g
+	let mut exp = sum!(prod!(-9, "x"), -3);
+	exp.factorize();
+	assert_eq!(exp.to_string(), "- 3\\left( 3x + 1 \\right)");
+	let mut exp = sum!(prod!(-28, exp!("x", 2), "y"), prod!(-32, "x", exp!("y", 2)));
+	exp.factorize();
+	assert_eq!(exp.to_string(), "- 4xy\\left( 7x + 8y \\right)");
 }

@@ -38,4 +38,18 @@ fn like_terms() {
 	assert_eq!(exp.to_string(), "4x - y + 12 + 5y - 9 - 9x");
 	exp.simplify();
 	assert_eq!(exp.to_string(), "- 5x + 4y + 3");
+
+	// Sec 2a Worksheet 3a Pg 33 Q2g
+	let mut exp = sum_verbatim!(
+		prod!(-1, exp!("x", 2)),
+		12,
+		prod!(-7, "x"),
+		prod!(4, exp!("x", 2)),
+		prod!(-3, "x"),
+		-8
+	);
+	assert_eq!(exp.to_string(), "- x^2 + 12 - 7x + 4x^2 - 3x - 8");
+	exp.simplify();
+	assert_eq!(exp.to_string(), "3x^2 + 4 - 10x");
+	// TODO: reorder
 }

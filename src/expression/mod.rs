@@ -183,6 +183,7 @@ impl Expression {
 					t.simplify();
 				}
 				// combine like terms
+				// TODO: move into sum?
 				let mut i = 0;
 				// variable string: (coefficient, [term index])
 				let mut term_map: HashMap<String, (Fraction, Vec<usize>)> =
@@ -224,11 +225,25 @@ impl Expression {
 								term_map.insert(v.to_string(), (1.into(), vec![i]));
 							}
 						}
+						Expression::Sum(s) => {
+							let lexical_string = s.lexical_string();
+							if term_map.contains_key(&lexical_string) {
+								let (coefficient, indices) = term_map.get(&lexical_string).unwrap();
+								let coefficient = *coefficient + 1.into();
+								let mut indices = indices.clone();
+								indices.push(i);
+								term_map.insert(lexical_string, (coefficient, indices));
+							} else {
+								term_map.insert(lexical_string, (1.into(), vec![i]));
+							}
+						}
+						// TODO: handle quotients
 						_ => (),
 					}
 					i += 1;
 				}
 				let mut indices_to_remove: Vec<usize> = Vec::new();
+				// modify affected term
 				for (_, (coefficient, indices)) in term_map.iter() {
 					if indices.len() > 1 {
 						let mut indices = indices.iter();
@@ -378,12 +393,14 @@ impl Expression {
 				if sums.len() > 0 {
 					let mut new_terms: Vec<Box<Expression>> = sums.pop_front().unwrap().terms;
 					while sums.len() > 0 {
-						let mut terms_to_multiply = sums.pop_front().unwrap().terms;
-						for t1 in new_terms.iter_mut() {
-							for t2 in terms_to_multiply.iter_mut() {
+						let old_terms = new_terms.clone();
+						let next_sum = sums.pop_front().unwrap();
+						new_terms = Vec::new();
+						for t1 in old_terms {
+							for t2 in &next_sum.terms {
 								let mut t = prod!(t1.as_ref().clone(), t2.as_ref().clone());
 								t.simplify();
-								*t1 = Box::new(t);
+								new_terms.push(Box::new(t));
 							}
 						}
 					}
@@ -413,6 +430,33 @@ impl Expression {
 			Expression::Exponent(e) => {
 				e.base.expand();
 				e.exponent.expand();
+				if let Expression::Numeral(n) = e.exponent.as_ref() {
+					if n.is_integer() && n.is_positive() {
+						if let Expression::Product(p) = e.base.as_ref() {
+							let mut factors: Vec<Box<Expression>> = Vec::new();
+							for f in p.factors.iter() {
+								factors.push(Box::new(exp!(f.as_ref().clone(), n.clone())));
+							}
+							let mut exp = Expression::Product(Product {
+								coefficient: p.coefficient.pow(n.numerator),
+								factors,
+							});
+							exp.simplify();
+							*self = exp;
+						} else if let Expression::Sum(_) = e.base.as_ref() {
+							let mut factors: Vec<Box<Expression>> = Vec::new();
+							for _ in 0..n.numerator {
+								factors.push(e.base.clone());
+							}
+							let mut exp = Expression::Product(Product {
+								coefficient: Fraction::from(1),
+								factors,
+							});
+							exp.expand_and_simplify();
+							*self = exp;
+						}
+					}
+				}
 			}
 			_ => (),
 		}
@@ -577,6 +621,7 @@ impl Expression {
 								}
 							}
 							Expression::Variable(v) => {
+								factor = Fraction::from(1);
 								let power = if let Some(n) = variable_exponent_map.get_mut(v) {
 									Some(cmp::min(*n, 1.into()))
 								} else {
@@ -867,6 +912,18 @@ impl Expression {
 				}
 				_ => (),
 			}
+		}
+	}
+
+	pub fn factorize_numerator(&mut self) -> () {
+		if let Expression::Quotient(q) = self {
+			q.numerator.factorize();
+		}
+	}
+
+	pub fn factorize_denominator(&mut self) -> () {
+		if let Expression::Quotient(q) = self {
+			q.denominator.factorize();
 		}
 	}
 
