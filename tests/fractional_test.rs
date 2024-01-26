@@ -1,8 +1,11 @@
+//use std::env;
+
 use mathlify::expression::*;
 use mathlify::*;
 
 #[test]
 fn fractional_expressions() {
+	//env::set_var("RUST_BACKTRACE", "1");
 	// Sec 1A Worksheet 4d, page 69, Q1d
 	let mut exp = sum_verbatim!(
 		prod!(Fraction::new(5, 6), "x"),
@@ -45,7 +48,6 @@ fn fractional_expressions() {
 	let mut exp = sum!(quotient!(prod!(3, "x"), 4), quotient!(prod!(7, "x"), 12));
 	assert_eq!(exp.to_string(), "\\frac{3x}{4} + \\frac{7x}{12}");
 	exp.combine_fraction();
-	println!("{:#?}", exp);
 	assert_eq!(exp.to_string(), "\\frac{4x}{3}");
 	let mut exp = sum!("x", quotient!(sum!(prod!(5, "x"), -3), 6));
 	assert_eq!(exp.to_string(), "x + \\frac{5x - 3}{6}");
@@ -177,4 +179,5 @@ fn cancellation() {
 		exp.to_string(),
 		"\\frac{2y^2\\left( z - x \\right)}{\\left( x - z \\right)^2}"
 	);
+	// TODO: z-x vs x-z
 }

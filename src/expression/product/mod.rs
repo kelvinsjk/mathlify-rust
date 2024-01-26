@@ -2,6 +2,7 @@ use crate::expression::numeral::Fraction;
 use crate::expression::{Expression, SubIn};
 use std::collections::HashMap;
 use std::fmt;
+pub mod product_lcm;
 
 use super::Exponent;
 
